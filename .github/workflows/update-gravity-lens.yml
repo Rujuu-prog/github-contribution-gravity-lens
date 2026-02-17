@@ -1,0 +1,60 @@
+name: Update Gravity Lens
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      theme:
+        description: 'Color theme (dark or light)'
+        default: 'dark'
+        type: choice
+        options:
+          - dark
+          - light
+      format:
+        description: 'Output format'
+        default: 'svg'
+        type: choice
+        options:
+          - svg
+          - gif
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Generate gravity lens
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          THEME="${{ github.event.inputs.theme || 'dark' }}"
+          FORMAT="${{ github.event.inputs.format || 'svg' }}"
+          node dist/cli.js \
+            --user ${{ github.repository_owner }} \
+            --token "$GITHUB_TOKEN" \
+            --theme "$THEME" \
+            --format "$FORMAT" \
+            --output "gravity-lens.${FORMAT}"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gravity-lens.*
+          git diff --staged --quiet || git commit -m "Update gravity lens animation"
+          git push
