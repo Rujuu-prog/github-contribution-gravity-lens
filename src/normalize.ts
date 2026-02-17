@@ -1,4 +1,4 @@
-import { ContributionDay, GridCell } from './types';
+import { ContributionDay, GridCell, AnomalyGridCell } from './types';
 
 export function percentile(values: number[], p: number): number {
   if (values.length === 0) return 0;
@@ -39,4 +39,17 @@ export function normalizeContributions(days: ContributionDay[]): GridCell[] {
       mass,
     };
   });
+}
+
+export function detectAnomalies(cells: GridCell[], percent: number = 10): AnomalyGridCell[] {
+  if (cells.length === 0) return [];
+
+  const counts = cells.map(c => c.count);
+  const threshold = percentile(counts, 100 - percent);
+
+  return cells.map(cell => ({
+    ...cell,
+    isAnomaly: cell.count >= threshold && threshold > 0,
+    anomalyIntensity: cell.count >= threshold && threshold > 0 ? cell.mass : 0,
+  }));
 }

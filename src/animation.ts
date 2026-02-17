@@ -39,11 +39,12 @@ export function cubicBezierEase(t: number): number {
 }
 
 /**
- * 4フェーズのワープ進行度を返す
- * Phase 1 (0〜25%): 静止 → 0
- * Phase 2 (25%〜50%): ease-in → 0→1
- * Phase 3 (50%〜70%): ホールド → 1
- * Phase 4 (70%〜100%): ease-out → 1→0
+ * 5フェーズのワープ進行度を返す（改訂版）
+ * Phase 1 (0〜0.25   / 0-1.0s):     静止 → 0
+ * Phase 2 (0.25〜0.325 / 1.0-1.3s):  明度のみ → warp不動 = 0
+ * Phase 3 (0.325〜0.625 / 1.3-2.5s): レンズ → 0→1
+ * Phase 4 (0.625〜0.80 / 2.5-3.2s):  干渉 → 1
+ * Phase 5 (0.80〜1.00 / 3.2-4.0s):   復元 → 1→0
  */
 export function getWarpProgress(time: number, duration: number): number {
   const t = ((time % duration) + duration) % duration;
@@ -54,18 +55,56 @@ export function getWarpProgress(time: number, duration: number): number {
     return 0;
   }
 
-  // Phase 2: ease-in (0.25〜0.50)
-  if (ratio < 0.50) {
-    const phaseT = (ratio - 0.25) / 0.25;
+  // Phase 2: 明度のみ (0.25〜0.325) → warp不動
+  if (ratio < 0.325) {
+    return 0;
+  }
+
+  // Phase 3: レンズ (0.325〜0.625) → 0→1
+  if (ratio < 0.625) {
+    const phaseT = (ratio - 0.325) / 0.3;
     return cubicBezierEase(phaseT);
   }
 
-  // Phase 3: ホールド (0.50〜0.70)
-  if (ratio < 0.70) {
+  // Phase 4: 干渉ホールド (0.625〜0.80)
+  if (ratio < 0.80) {
     return 1;
   }
 
-  // Phase 4: ease-out (0.70〜1.00)
-  const phaseT = (ratio - 0.70) / 0.30;
+  // Phase 5: 復元 (0.80〜1.00) → 1→0
+  const phaseT = (ratio - 0.80) / 0.20;
+  return 1 - cubicBezierEase(phaseT);
+}
+
+/**
+ * 5フェーズの明度進行度を返す
+ * Phase 1 (0〜0.25):     0
+ * Phase 2 (0.25〜0.325):  0→1 (eased)
+ * Phase 3 (0.325〜0.625): 1
+ * Phase 4 (0.625〜0.80):  1
+ * Phase 5 (0.80〜1.00):   1→0 (eased)
+ */
+export function getBrightnessProgress(time: number, duration: number): number {
+  const t = ((time % duration) + duration) % duration;
+  const ratio = t / duration;
+
+  // Phase 1: 静止 (0〜0.25)
+  if (ratio < 0.25) {
+    return 0;
+  }
+
+  // Phase 2: 明度 (0.25〜0.325) → 0→1
+  if (ratio < 0.325) {
+    const phaseT = (ratio - 0.25) / 0.075;
+    return cubicBezierEase(phaseT);
+  }
+
+  // Phase 3-4: ホールド (0.325〜0.80)
+  if (ratio < 0.80) {
+    return 1;
+  }
+
+  // Phase 5: 復元 (0.80〜1.00) → 1→0
+  const phaseT = (ratio - 0.80) / 0.20;
   return 1 - cubicBezierEase(phaseT);
 }

@@ -2,20 +2,30 @@ import { Theme } from './types';
 
 const darkTheme: Theme = {
   name: 'dark',
-  background: '#0d1117',
-  gridBase: '#161b22',
-  levels: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'],
-  warpGlow: 'rgba(120, 255, 180, 0.08)',
-  textColor: 'rgba(255, 255, 255, 0.5)',
+  backgroundTop: '#0b0f14',
+  backgroundBottom: '#0f1720',
+  gridBase: '#13202b',
+  levels: ['#13202b', '#1f3b4d', '#255d73', '#2e86a7', '#66c2ff'],
+  accentColor: 'rgba(139, 92, 246, 0.15)',
+  warpGlow: 'rgba(102, 194, 255, 0.08)',
+  textColor: 'rgba(255, 255, 255, 0.35)',
+  fieldGradient: { peakColor: '#a78bfa', intensity: 0.6 },
+  anomalyAccent: '#3ddcff',
+  anomalyHighlight: '#5ee6ff',
 };
 
 const lightTheme: Theme = {
   name: 'light',
-  background: '#ffffff',
+  backgroundTop: '#ffffff',
+  backgroundBottom: '#f6f8fa',
   gridBase: '#ebedf0',
   levels: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'],
+  accentColor: 'rgba(139, 92, 246, 0.10)',
   warpGlow: 'rgba(0, 120, 60, 0.08)',
   textColor: 'rgba(0, 0, 0, 0.5)',
+  fieldGradient: { peakColor: '#7c3aed', intensity: 0.5 },
+  anomalyAccent: '#3ddcff',
+  anomalyHighlight: '#5ee6ff',
 };
 
 export function getTheme(name: 'dark' | 'light'): Theme {

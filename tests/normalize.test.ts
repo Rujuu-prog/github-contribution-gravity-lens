@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { percentile, normalizeContributions, applyNonLinearMapping } from '../src/normalize';
-import { ContributionDay } from '../src/types';
+import { percentile, normalizeContributions, applyNonLinearMapping, detectAnomalies } from '../src/normalize';
+import { ContributionDay, GridCell } from '../src/types';
 
 describe('percentile', () => {
   it('空配列に対して0を返す', () => {
@@ -105,5 +105,107 @@ describe('normalizeContributions', () => {
     // 次の7日は col=1
     expect(result[7].col).toBe(1);
     expect(result[7].row).toBe(0);
+  });
+});
+
+function makeCell(row: number, col: number, count: number, mass: number): GridCell {
+  return { row, col, count, level: 0, mass };
+}
+
+describe('detectAnomalies', () => {
+  it('空配列に対して空配列を返す', () => {
+    expect(detectAnomalies([])).toEqual([]);
+  });
+
+  it('全count=0の場合、全セルがisAnomaly=falseになる', () => {
+    const cells = [
+      makeCell(0, 0, 0, 0),
+      makeCell(0, 1, 0, 0),
+      makeCell(1, 0, 0, 0),
+    ];
+    const result = detectAnomalies(cells);
+    expect(result).toHaveLength(3);
+    result.forEach(c => {
+      expect(c.isAnomaly).toBe(false);
+      expect(c.anomalyIntensity).toBe(0);
+    });
+  });
+
+  it('上位10%のセルがisAnomaly=trueになる', () => {
+    // 10セル: count 1〜10, 上位10% = count >= 10 → 1セルだけ
+    const cells = Array.from({ length: 10 }, (_, i) =>
+      makeCell(0, i, i + 1, (i + 1) / 10),
+    );
+    const result = detectAnomalies(cells, 10);
+    const anomalies = result.filter(c => c.isAnomaly);
+    expect(anomalies.length).toBeGreaterThanOrEqual(1);
+    // 最大count(=10)のセルは必ず異常点
+    const maxCell = result.find(c => c.count === 10);
+    expect(maxCell!.isAnomaly).toBe(true);
+  });
+
+  it('閾値と同値のセルもisAnomaly=trueになる', () => {
+    // 全セルが同じcount → 閾値 = そのcount → 全セルがanomaly
+    const cells = [
+      makeCell(0, 0, 5, 0.5),
+      makeCell(0, 1, 5, 0.5),
+      makeCell(0, 2, 5, 0.5),
+    ];
+    const result = detectAnomalies(cells, 10);
+    result.forEach(c => expect(c.isAnomaly).toBe(true));
+  });
+
+  it('全セル同値の場合、全セルがanomalyになる', () => {
+    const cells = Array.from({ length: 5 }, (_, i) =>
+      makeCell(0, i, 3, 0.3),
+    );
+    const result = detectAnomalies(cells, 20);
+    result.forEach(c => expect(c.isAnomaly).toBe(true));
+  });
+
+  it('100セルで上位5%が正しく検出される', () => {
+    const cells = Array.from({ length: 100 }, (_, i) =>
+      makeCell(Math.floor(i / 10), i % 10, i + 1, (i + 1) / 100),
+    );
+    const result = detectAnomalies(cells, 5);
+    const anomalies = result.filter(c => c.isAnomaly);
+    // 上位5% → count >= 95パーセンタイル閾値 → 複数セルが該当
+    expect(anomalies.length).toBeGreaterThanOrEqual(1);
+    expect(anomalies.length).toBeLessThanOrEqual(10); // 最大でも10%程度
+    // 全ての異常点のcountが非異常点の最大countより大きいか等しい
+    const nonAnomalies = result.filter(c => !c.isAnomaly);
+    if (nonAnomalies.length > 0) {
+      const maxNonAnomaly = Math.max(...nonAnomalies.map(c => c.count));
+      anomalies.forEach(c => expect(c.count).toBeGreaterThanOrEqual(maxNonAnomaly));
+    }
+  });
+
+  it('元のGridCellフィールドが保持される', () => {
+    const cells = [makeCell(3, 7, 15, 0.8)];
+    const result = detectAnomalies(cells, 10);
+    expect(result[0].row).toBe(3);
+    expect(result[0].col).toBe(7);
+    expect(result[0].count).toBe(15);
+    expect(result[0].mass).toBe(0.8);
+  });
+
+  it('anomalyIntensityがanomalyセルでmass値と等しい', () => {
+    const cells = [
+      makeCell(0, 0, 10, 0.9),
+      makeCell(0, 1, 1, 0.1),
+    ];
+    const result = detectAnomalies(cells, 50);
+    const anomaly = result.find(c => c.isAnomaly);
+    expect(anomaly).toBeDefined();
+    expect(anomaly!.anomalyIntensity).toBe(anomaly!.mass);
+  });
+
+  it('デフォルトpercent=10で動作する', () => {
+    const cells = Array.from({ length: 20 }, (_, i) =>
+      makeCell(0, i, i + 1, (i + 1) / 20),
+    );
+    const result = detectAnomalies(cells); // percent省略 → 10
+    const anomalies = result.filter(c => c.isAnomaly);
+    expect(anomalies.length).toBeGreaterThanOrEqual(1);
   });
 });

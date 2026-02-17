@@ -29,4 +29,11 @@ describe('renderGif', () => {
     const gif = await renderGif(days, { theme: 'dark' });
     expect(gif.length).toBeLessThan(2 * 1024 * 1024);
   });
+
+  it('テーマ指定でも正常生成できる', { timeout: 30000 }, async () => {
+    const gif = await renderGif(days, { theme: 'light' });
+    expect(gif).toBeInstanceOf(Buffer);
+    const header = gif.subarray(0, 6).toString('ascii');
+    expect(header).toBe('GIF89a');
+  });
 });
