@@ -1,6 +1,6 @@
 import { ContributionDay, RenderOptions } from './types';
 import { normalizeContributions, detectAnomalies } from './normalize';
-import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly } from './gravity';
+import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly, computeInterferenceJitter } from './gravity';
 import { getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
 import { getTheme } from './theme';
 import { computeAnomalyColor, adjustBrightness, shiftHue, hexToRgb } from './color-blend';
@@ -149,7 +149,17 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
         const filterStr = brightnessP > 0 ? ` filter: contrast(${contrast.toFixed(3)});` : '';
         posKeyframes.push(`  ${pct}% { transform: translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)${scaleStr} translateZ(1px);${filterStr} }`);
       } else {
-        posKeyframes.push(`  ${pct}% { transform: translate(${x.toFixed(2)}px, ${y.toFixed(2)}px); }`);
+        // Zone cell: apply interference jitter + scale
+        const interferenceP = sampledInterference[s];
+        const jitter = computeInterferenceJitter(cell.row, cell.col, interferenceP, interference);
+        const jx = x + jitter.x;
+        const jy = y + jitter.y;
+        const intScale = 1 + 0.015 * interferenceP * interference;
+        if (intScale > 1.0001) {
+          posKeyframes.push(`  ${pct}% { transform: translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px) scale(${intScale.toFixed(4)}); }`);
+        } else {
+          posKeyframes.push(`  ${pct}% { transform: translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px); }`);
+        }
       }
     }
 
@@ -181,7 +191,7 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
             color = theme.peakMomentColor;
           } else if (interferenceP > 0) {
             // Peak moment color blend
-            const peakBlend = interferenceP * 0.3;
+            const peakBlend = interferenceP * 0.5;
             const peakRgb = hexToRgb(theme.peakMomentColor);
             const colorRgb = hexToRgb(color);
             const r = Math.round(colorRgb[0] + (peakRgb[0] - colorRgb[0]) * peakBlend);
@@ -197,7 +207,8 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
           color = shiftHue(color, 7 * warpP);
           color = adjustBrightness(color, -0.08 * warpP);
           if (interference > 0 && interferenceP > 0) {
-            color = adjustBrightness(color, 0.20 * interferenceP * interference);
+            color = shiftHue(color, 5 * interferenceP * interference);
+            color = adjustBrightness(color, 0.25 * interferenceP * interference);
           }
         }
       }
@@ -219,7 +230,20 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
       keyframesArr.push(`@keyframes rx-${i} {\n${rxKeyframes.join('\n')}\n}`);
     }
 
-    const animStyle = isAnomaly
+    // rx keyframes for zone cells with interference
+    if (!isAnomaly && interference > 0) {
+      const rxKeyframes: string[] = [];
+      for (let s = 0; s < sampleTimes.length; s++) {
+        const pct = ((sampleTimes[s] / opts.duration) * 100).toFixed(1);
+        const intP = sampledInterference[s];
+        const intRx = cornerRadius + (4 - cornerRadius) * intP * interference;
+        rxKeyframes.push(`  ${pct}% { rx: ${intRx.toFixed(2)}; ry: ${intRx.toFixed(2)}; }`);
+      }
+      keyframesArr.push(`@keyframes rx-${i} {\n${rxKeyframes.join('\n')}\n}`);
+    }
+
+    const hasRxAnim = isAnomaly || (!isAnomaly && interference > 0);
+    const animStyle = hasRxAnim
       ? `animation: ${animName} ${opts.duration}s linear infinite, color-${i} ${opts.duration}s linear infinite, rx-${i} ${opts.duration}s linear infinite;`
       : `animation: ${animName} ${opts.duration}s linear infinite, color-${i} ${opts.duration}s linear infinite;`;
 
@@ -247,8 +271,15 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
     const brightEnd = ((2 + delay + 1.2) / opts.duration).toFixed(3);
     const restoreStart = (11 / opts.duration).toFixed(3);
 
+    // Interference glow radius amplification timing
+    const intStart = (8 / opts.duration).toFixed(3);
+    const intPeak = (9.5 / opts.duration).toFixed(3);
+    const intEnd = (11 / opts.duration).toFixed(3);
+    const boostedR = Math.round(outerR * 1.15);
+
     glowElements.push(`<circle cx="${cx}" cy="${cy}" r="${outerR}" fill="url(#glow-${idx})" opacity="0">
     <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;${brightStart};${brightEnd};${restoreStart};1" dur="${opts.duration}s" repeatCount="indefinite" />
+    <animate attributeName="r" values="${outerR};${outerR};${boostedR};${outerR}" keyTimes="0;${intStart};${intPeak};${intEnd}" dur="${opts.duration}s" repeatCount="indefinite" />
   </circle>`);
   });
 

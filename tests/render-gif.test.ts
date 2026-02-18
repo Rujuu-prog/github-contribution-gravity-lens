@@ -57,4 +57,13 @@ describe('renderGif', () => {
     const gif = await renderGif(days, { theme: 'dark' });
     expect(gif.length).toBeLessThan(2 * 1024 * 1024);
   });
+
+  it('干渉強化後も正常生成・2MB以下である', { timeout: 60000 }, async () => {
+    const gif = await renderGif(days, { theme: 'dark' });
+    expect(gif).toBeInstanceOf(Buffer);
+    const header = gif.subarray(0, 6).toString('ascii');
+    expect(header).toBe('GIF89a');
+    expect(gif.length).toBeLessThan(2 * 1024 * 1024);
+    expect(gif.length).toBeGreaterThan(0);
+  });
 });

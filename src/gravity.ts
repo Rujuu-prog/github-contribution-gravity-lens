@@ -365,6 +365,22 @@ export function computeLocalLensWarpPerAnomaly(
 }
 
 /**
+ * 干渉中のゾーンセルに適用する決定論的位置ジッターを算出
+ */
+export function computeInterferenceJitter(
+  row: number, col: number,
+  interferenceProgress: number,
+  interferenceLevel: number,
+  maxJitter: number = 0.8,
+): { x: number; y: number } {
+  if (interferenceProgress <= 0 || interferenceLevel <= 0) return { x: 0, y: 0 };
+  const hash = ((row * 13397 + col * 8461) ^ 0x3c6ef35f) & 0xffffffff;
+  const angle = ((hash & 0x7fffffff) % 1000) / 1000 * Math.PI * 2;
+  const magnitude = maxJitter * interferenceProgress * interferenceLevel;
+  return { x: Math.cos(angle) * magnitude, y: Math.sin(angle) * magnitude };
+}
+
+/**
  * 決定的ハッシュベースでセルの回転角 (±1-2deg) を返す
  */
 export function getCellRotation(row: number, col: number): number {

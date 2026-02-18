@@ -2,7 +2,7 @@ import { createCanvas, CanvasRenderingContext2D as NodeCanvasCtx } from 'canvas'
 import GIFEncoder from 'gif-encoder-2';
 import { ContributionDay, RenderOptions } from './types';
 import { normalizeContributions, detectAnomalies } from './normalize';
-import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly } from './gravity';
+import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly, computeInterferenceJitter } from './gravity';
 import { getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
 import { getTheme } from './theme';
 import { hexToRgb, computeAnomalyColor, adjustBrightness, shiftHue, blendColors } from './color-blend';
@@ -156,7 +156,7 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
           if (interferenceProgress > 0.95) {
             fillColor = theme.peakMomentColor;
           } else if (interferenceProgress > 0) {
-            fillColor = blendColors(fillColor, theme.peakMomentColor, interferenceProgress * 0.3);
+            fillColor = blendColors(fillColor, theme.peakMomentColor, interferenceProgress * 0.5);
           }
           fillColor = adjustBrightness(fillColor, 0.05 * effectiveWarpP);
         } else if (fg) {
@@ -165,7 +165,8 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
           fillColor = adjustBrightness(fillColor, -0.08 * effectiveWarpP);
           const interference = interferenceLevels[ci] || 0;
           if (interference > 0 && interferenceProgress > 0) {
-            fillColor = adjustBrightness(fillColor, 0.20 * interferenceProgress * interference);
+            fillColor = shiftHue(fillColor, 5 * interferenceProgress * interference);
+            fillColor = adjustBrightness(fillColor, 0.25 * interferenceProgress * interference);
           }
         }
 
@@ -188,7 +189,18 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
           roundRect(ctx, x - offset, y - offset, scaledSize, scaledSize, animatedRx);
           ctx.restore();
         } else {
-          roundRect(ctx, x, y, cellSize, cellSize, cornerRadius);
+          // Zone cell: apply interference jitter + scale + rx
+          const interference = interferenceLevels[ci] || 0;
+          const jitter = computeInterferenceJitter(cell.row, cell.col, interferenceProgress, interference);
+          if (interference > 0 && interferenceProgress > 0) {
+            const intScale = 1 + 0.015 * interferenceProgress * interference;
+            const scaledSize = cellSize * intScale;
+            const sOffset = (scaledSize - cellSize) / 2;
+            const intRx = cornerRadius + (4 - cornerRadius) * interferenceProgress * interference;
+            roundRect(ctx, x - sOffset + jitter.x, y - sOffset + jitter.y, scaledSize, scaledSize, intRx);
+          } else {
+            roundRect(ctx, x + jitter.x, y + jitter.y, cellSize, cellSize, cornerRadius);
+          }
         }
       }
     }
@@ -202,14 +214,16 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
       const cx = src.col * cellStep + cellSize / 2 + padding;
       const cy = src.row * cellStep + cellSize / 2 + padding;
       const outerR = cellStep * 4;
-      const glowAlpha = glowBrightness * 0.12;
-      const glowGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, outerR);
+      const interferenceBoost = 1 + 0.3 * interferenceProgress;
+      const glowAlpha = glowBrightness * 0.12 * interferenceBoost;
+      const effectiveR = outerR * (1 + 0.15 * interferenceProgress);
+      const glowGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, effectiveR);
       const accentRgb = hexToRgb(theme.anomalyAccent);
       glowGradient.addColorStop(0, `rgba(${accentRgb[0]}, ${accentRgb[1]}, ${accentRgb[2]}, ${glowAlpha})`);
       glowGradient.addColorStop(0.5, `rgba(${accentRgb[0]}, ${accentRgb[1]}, ${accentRgb[2]}, ${glowAlpha * 0.3})`);
       glowGradient.addColorStop(1, `rgba(${accentRgb[0]}, ${accentRgb[1]}, ${accentRgb[2]}, 0)`);
       ctx.beginPath();
-      ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+      ctx.arc(cx, cy, effectiveR, 0, Math.PI * 2);
       ctx.fillStyle = glowGradient;
       ctx.fill();
     }

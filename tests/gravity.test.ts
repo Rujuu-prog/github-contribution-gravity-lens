@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeGravityCenter, computeWarpedPositions, findGravityPeaks, computeFieldWarp, computeWarpIntensity, computeLocalLensWarp, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly } from '../src/gravity';
+import { computeGravityCenter, computeWarpedPositions, findGravityPeaks, computeFieldWarp, computeWarpIntensity, computeLocalLensWarp, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly, computeInterferenceJitter } from '../src/gravity';
 import { GridCell, AnomalyGridCell, Point, WarpedCell } from '../src/types';
 
 function makeCell(row: number, col: number, mass: number): GridCell {
@@ -709,5 +709,52 @@ describe('getCellRotation', () => {
     const r3 = getCellRotation(1, 0);
     const unique = new Set([r1, r2, r3]);
     expect(unique.size).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('computeInterferenceJitter', () => {
+  it('interferenceProgress=0 → {x:0, y:0}', () => {
+    const result = computeInterferenceJitter(3, 5, 0, 0.5);
+    expect(result.x).toBe(0);
+    expect(result.y).toBe(0);
+  });
+
+  it('interferenceLevel=0 → {x:0, y:0}', () => {
+    const result = computeInterferenceJitter(3, 5, 0.8, 0);
+    expect(result.x).toBe(0);
+    expect(result.y).toBe(0);
+  });
+
+  it('正の値のとき magnitude ≤ maxJitter * progress * level', () => {
+    const progress = 0.7;
+    const level = 0.6;
+    const maxJitter = 0.8;
+    const result = computeInterferenceJitter(3, 5, progress, level, maxJitter);
+    const mag = Math.hypot(result.x, result.y);
+    expect(mag).toBeGreaterThan(0);
+    expect(mag).toBeLessThanOrEqual(maxJitter * progress * level + 0.001);
+  });
+
+  it('同じ row, col → 決定論的（同一結果）', () => {
+    const r1 = computeInterferenceJitter(3, 5, 0.5, 0.5);
+    const r2 = computeInterferenceJitter(3, 5, 0.5, 0.5);
+    expect(r1.x).toBe(r2.x);
+    expect(r1.y).toBe(r2.y);
+  });
+
+  it('異なる row, col → 異なる方向', () => {
+    const r1 = computeInterferenceJitter(0, 0, 1, 1);
+    const r2 = computeInterferenceJitter(3, 7, 1, 1);
+    // 角度が異なるはず（完全一致は極めて低確率）
+    const angle1 = Math.atan2(r1.y, r1.x);
+    const angle2 = Math.atan2(r2.y, r2.x);
+    expect(angle1).not.toBeCloseTo(angle2, 2);
+  });
+
+  it('デフォルトmaxJitter=0.8', () => {
+    const result = computeInterferenceJitter(3, 5, 1, 1);
+    const mag = Math.hypot(result.x, result.y);
+    expect(mag).toBeLessThanOrEqual(0.8 + 0.001);
+    expect(mag).toBeGreaterThan(0);
   });
 });

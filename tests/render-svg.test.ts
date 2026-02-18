@@ -169,6 +169,19 @@ describe('renderSvg', () => {
     expect(nonFullValues.length).toBeGreaterThan(0);
   });
 
+  it('干渉ゾーンのゾーンセルにscale効果がキーフレーム内に存在する', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    // ゾーンセルのscaleパルス: scale(1.00XX) の値が存在
+    const warpBlocks = svg.match(/@keyframes warp-\d+\s*\{[\s\S]*?\n\}/g) || [];
+    const hasZoneScale = warpBlocks.some(block => /scale\(1\.0[0-1]\d{2}\)/.test(block));
+    expect(hasZoneScale).toBe(true);
+  });
+
+  it('グロー要素に <animate attributeName="r" が存在する', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    expect(svg).toContain('attributeName="r"');
+  });
+
   it('異常点セルのcontrastがbrightnessProgressで補間される', () => {
     const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
     // contrast(1.050) フル値以外の中間値がある
