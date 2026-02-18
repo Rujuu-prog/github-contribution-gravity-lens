@@ -26,14 +26,6 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Debug GitHub token via API
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          curl -s -o /dev/null -w "%{http_code}\n" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            https://api.github.com/user
-
       - name: Install dependencies
         run: npm ci
 
