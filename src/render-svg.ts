@@ -1,4 +1,4 @@
-import { ContributionDay, RenderOptions } from './types';
+import { ContributionDay, RenderOptions, ThemeName } from './types';
 import { normalizeContributions, detectAnomalies } from './normalize';
 import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly, computeInterferenceJitter } from './gravity';
 import { getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
@@ -6,7 +6,7 @@ import { getTheme } from './theme';
 import { computeAnomalyColor, adjustBrightness, shiftHue, hexToRgb } from './color-blend';
 
 const DEFAULT_OPTIONS: RenderOptions = {
-  theme: 'dark',
+  theme: 'github',
   strength: 0.5,
   duration: 14,
   clipPercent: 95,
@@ -17,7 +17,7 @@ const DEFAULT_OPTIONS: RenderOptions = {
 };
 
 interface SvgRenderOptions {
-  theme?: 'dark' | 'light';
+  theme?: ThemeName | 'dark' | 'light';
   strength?: number;
   duration?: number;
   clipPercent?: number;
@@ -25,8 +25,9 @@ interface SvgRenderOptions {
 }
 
 export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {}): string {
-  const opts: RenderOptions = { ...DEFAULT_OPTIONS, ...options };
+  const opts = { ...DEFAULT_OPTIONS, ...options } as RenderOptions;
   const theme = getTheme(opts.theme);
+  const effectiveStrength = opts.strength * theme.warpMultiplier;
   const { cellSize, cellGap, cornerRadius } = opts;
   const cellStep = cellSize + cellGap;
   const R = 60;
@@ -41,7 +42,7 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
   const interferenceLevels = computeInterference(anomalyCells, R, cellSize, cellGap);
 
   // Compute max warped positions (all progress=1) for intensity calculation
-  const maxWarpedCells = computeLocalLensWarp(anomalyCells, 1, R, opts.strength, cellSize, cellGap);
+  const maxWarpedCells = computeLocalLensWarp(anomalyCells, 1, R, effectiveStrength, cellSize, cellGap);
   const intensities = computeWarpIntensity(maxWarpedCells);
 
   // Grid dimensions
@@ -84,7 +85,7 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
       }
     });
 
-    const warped = computeLocalLensWarpPerAnomaly(anomalyCells, progresses, R, opts.strength, cellSize, cellGap);
+    const warped = computeLocalLensWarpPerAnomaly(anomalyCells, progresses, R, effectiveStrength, cellSize, cellGap);
     sampledPositions.push(warped.map(w => ({ x: w.warpedX, y: w.warpedY })));
   }
 
@@ -185,7 +186,7 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
       let color = baseColor;
       if (isAnomaly) {
         if (brightnessP > 0) {
-          color = computeAnomalyColor(baseColor, theme.anomalyAccent, brightnessP, 0.15);
+          color = computeAnomalyColor(baseColor, theme.anomalyAccent, brightnessP, theme.peakBrightnessBoost);
           color = adjustBrightness(color, 0.05 * warpP);
           if (interferenceP > 0.95) {
             color = theme.peakMomentColor;
@@ -205,7 +206,7 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
         if (fg && brightnessP > 0) {
           color = computeAnomalyColor(baseColor, fg.peakColor, intensities[i] * warpP, fg.intensity);
           color = shiftHue(color, 7 * warpP);
-          color = adjustBrightness(color, -0.08 * warpP);
+          color = adjustBrightness(color, (-0.08 + theme.dimming) * warpP);
           if (interference > 0 && interferenceP > 0) {
             color = shiftHue(color, 5 * interferenceP * interference);
             color = adjustBrightness(color, 0.25 * interferenceP * interference);

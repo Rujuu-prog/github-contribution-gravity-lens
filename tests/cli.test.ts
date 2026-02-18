@@ -4,16 +4,16 @@ import { parseCliOptions } from '../src/cli';
 describe('parseCliOptions', () => {
   it('デフォルト値が正しい', () => {
     const opts = parseCliOptions([]);
-    expect(opts.theme).toBe('dark');
+    expect(opts.theme).toBe('github');
     expect(opts.strength).toBe(0.35);
     expect(opts.duration).toBe(14);
     expect(opts.clipPercent).toBe(95);
     expect(opts.format).toBe('svg');
   });
 
-  it('--theme lightが反映される', () => {
-    const opts = parseCliOptions(['--theme', 'light']);
-    expect(opts.theme).toBe('light');
+  it('--theme paper-lightが反映される', () => {
+    const opts = parseCliOptions(['--theme', 'paper-light']);
+    expect(opts.theme).toBe('paper-light');
   });
 
   it('--strength 0.5が反映される', () => {
@@ -54,5 +54,30 @@ describe('parseCliOptions', () => {
   it('--demo 未指定時は falsy', () => {
     const opts = parseCliOptions([]);
     expect(opts.demo).toBeFalsy();
+  });
+
+  describe('テーマ名パース', () => {
+    it('デフォルトは github', () => {
+      const opts = parseCliOptions([]);
+      expect(opts.theme).toBe('github');
+    });
+
+    const themes = ['github', 'deep-space', 'monochrome', 'solar-flare', 'event-horizon', 'paper-light'];
+    for (const name of themes) {
+      it(`--theme ${name} が反映される`, () => {
+        const opts = parseCliOptions(['--theme', name]);
+        expect(opts.theme).toBe(name);
+      });
+    }
+
+    it('後方互換: --theme dark → github', () => {
+      const opts = parseCliOptions(['--theme', 'dark']);
+      expect(opts.theme).toBe('github');
+    });
+
+    it('後方互換: --theme light → paper-light', () => {
+      const opts = parseCliOptions(['--theme', 'light']);
+      expect(opts.theme).toBe('paper-light');
+    });
   });
 });

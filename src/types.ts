@@ -35,6 +35,8 @@ export interface WarpedCell extends GridCell {
   interferenceLevel?: number;
 }
 
+export type ThemeName = 'github' | 'deep-space' | 'monochrome' | 'solar-flare' | 'event-horizon' | 'paper-light';
+
 export interface Theme {
   name: string;
   backgroundTop: string;
@@ -51,10 +53,13 @@ export interface Theme {
   anomalyAccent: string;
   anomalyHighlight: string;
   peakMomentColor: string;
+  warpMultiplier: number;
+  dimming: number;
+  peakBrightnessBoost: number;
 }
 
 export interface RenderOptions {
-  theme: 'dark' | 'light';
+  theme: ThemeName;
   strength: number;
   duration: number;
   clipPercent: number;

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { writeFileSync } from 'fs';
+import { ThemeName } from './types';
 import { fetchContributions } from './fetch';
 import { generateDemoData } from './demo-data';
 import { renderSvg } from './render-svg';
@@ -10,12 +11,22 @@ export interface CliOptions {
   user?: string;
   token?: string;
   demo?: boolean;
-  theme: 'dark' | 'light';
+  theme: ThemeName;
   strength: number;
   duration: number;
   clipPercent: number;
   format: 'svg' | 'gif';
   output?: string;
+}
+
+const THEME_ALIASES: Record<string, ThemeName> = {
+  dark: 'github',
+  light: 'paper-light',
+};
+
+function resolveTheme(raw: string): ThemeName {
+  if (raw in THEME_ALIASES) return THEME_ALIASES[raw];
+  return raw as ThemeName;
 }
 
 export function parseCliOptions(args: string[]): CliOptions {
@@ -25,7 +36,7 @@ export function parseCliOptions(args: string[]): CliOptions {
     .description('Generate gravity lens animation from GitHub contributions')
     .option('-u, --user <username>', 'GitHub username')
     .option('-t, --token <token>', 'GitHub personal access token')
-    .option('--theme <theme>', 'Color theme', 'dark')
+    .option('--theme <theme>', 'Color theme (github, deep-space, monochrome, solar-flare, event-horizon, paper-light)', 'github')
     .option('--strength <number>', 'Warp strength', '0.35')
     .option('--duration <number>', 'Animation duration in seconds', '14')
     .option('--clip-percent <number>', 'Percentile clip value', '95')
@@ -40,7 +51,7 @@ export function parseCliOptions(args: string[]): CliOptions {
     user: opts.user,
     token: opts.token,
     demo: opts.demo ?? false,
-    theme: opts.theme as 'dark' | 'light',
+    theme: resolveTheme(opts.theme),
     strength: parseFloat(opts.strength),
     duration: parseFloat(opts.duration),
     clipPercent: parseFloat(opts.clipPercent),

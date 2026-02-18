@@ -1,6 +1,6 @@
 import { createCanvas, CanvasRenderingContext2D as NodeCanvasCtx } from 'canvas';
 import GIFEncoder from 'gif-encoder-2';
-import { ContributionDay, RenderOptions } from './types';
+import { ContributionDay, RenderOptions, ThemeName } from './types';
 import { normalizeContributions, detectAnomalies } from './normalize';
 import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly, computeInterferenceJitter } from './gravity';
 import { getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
@@ -8,7 +8,7 @@ import { getTheme } from './theme';
 import { hexToRgb, computeAnomalyColor, adjustBrightness, shiftHue, blendColors } from './color-blend';
 
 const DEFAULT_OPTIONS: RenderOptions = {
-  theme: 'dark',
+  theme: 'github',
   strength: 0.5,
   duration: 14,
   clipPercent: 95,
@@ -19,7 +19,7 @@ const DEFAULT_OPTIONS: RenderOptions = {
 };
 
 interface GifRenderOptions {
-  theme?: 'dark' | 'light';
+  theme?: ThemeName | 'dark' | 'light';
   strength?: number;
   duration?: number;
   clipPercent?: number;
@@ -29,9 +29,10 @@ interface GifRenderOptions {
 }
 
 export async function renderGif(days: ContributionDay[], options: GifRenderOptions = {}): Promise<Buffer> {
-  const opts: RenderOptions = { ...DEFAULT_OPTIONS, ...options };
+  const opts = { ...DEFAULT_OPTIONS, ...options } as RenderOptions;
   const fps = options.fps ?? 12; // 12fps for 14s = 168 frames (manageable GIF size)
   const theme = getTheme(opts.theme);
+  const effectiveStrength = opts.strength * theme.warpMultiplier;
   const { cellSize, cellGap, cornerRadius } = opts;
   const cellStep = cellSize + cellGap;
   const R = 60;
@@ -68,7 +69,7 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
   const totalFrames = Math.floor(fps * opts.duration);
 
   // Pre-compute max warped positions (all progress=1) for intensity calculation
-  const maxWarpedCells = computeLocalLensWarp(anomalyCells, 1, R, opts.strength, cellSize, cellGap);
+  const maxWarpedCells = computeLocalLensWarp(anomalyCells, 1, R, effectiveStrength, cellSize, cellGap);
   const maxIntensities = computeWarpIntensity(maxWarpedCells);
 
   const encoder = new GIFEncoder(width, height, 'neuquant', true);
@@ -93,7 +94,7 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
     });
 
     // Compute warped positions for this frame
-    const warpedCells = computeLocalLensWarpPerAnomaly(anomalyCells, progresses, R, opts.strength, cellSize, cellGap);
+    const warpedCells = computeLocalLensWarpPerAnomaly(anomalyCells, progresses, R, effectiveStrength, cellSize, cellGap);
 
     // Gradient background
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
@@ -152,7 +153,7 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
 
         let fillColor = baseColor;
         if (cell.isAnomaly) {
-          fillColor = computeAnomalyColor(baseColor, theme.anomalyAccent, brightnessProgress, 0.15);
+          fillColor = computeAnomalyColor(baseColor, theme.anomalyAccent, brightnessProgress, theme.peakBrightnessBoost);
           if (interferenceProgress > 0.95) {
             fillColor = theme.peakMomentColor;
           } else if (interferenceProgress > 0) {
@@ -162,7 +163,7 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
         } else if (fg) {
           fillColor = computeAnomalyColor(baseColor, fg.peakColor, maxIntensities[ci] * effectiveWarpP, fg.intensity);
           fillColor = shiftHue(fillColor, 7 * effectiveWarpP);
-          fillColor = adjustBrightness(fillColor, -0.08 * effectiveWarpP);
+          fillColor = adjustBrightness(fillColor, (-0.08 + theme.dimming) * effectiveWarpP);
           const interference = interferenceLevels[ci] || 0;
           if (interference > 0 && interferenceProgress > 0) {
             fillColor = shiftHue(fillColor, 5 * interferenceProgress * interference);

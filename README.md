@@ -2,39 +2,25 @@
 
 **[日本語](README_ja.md)** | English
 
-Turn your GitHub contribution graph into a spacetime distortion.
+Your contributions bend spacetime.
 
-High-activity days become gravitational anomalies.
-The grid bends. Space ripples. Your year warps.
+![Gravity Lens](docs/assets/theme-deep-space.svg)
 
-![Gravity Lens](gravity-lens.svg)
+---
 
-## What is this?
+## 🚀 Add It To Your Profile
 
-GitHub Contribution Gravity Lens analyzes your contribution history, detects anomalous activity peaks, and warps the surrounding cells toward those points — like light bending around a massive object. The result is a looping animation you can embed directly in your GitHub profile or repository README.
-
-- **SVG & GIF output** — lightweight SVG (default) or portable GIF
-- **14-second loop** — ripple activation, lens warp, interference pulse, and restore
-- **Dark & Light themes** — matches GitHub's default appearances
-- **Anomaly detection** — automatically identifies contribution spikes and animates them
-
-## Quick Start (GitHub Actions)
-
-The easiest way to use this is with a GitHub Actions workflow that regenerates the animation daily. No Personal Access Token required — the workflow uses the built-in `GITHUB_TOKEN` that GitHub Actions provides automatically.
-
-### 1. Create the workflow file
-
-Create `.github/workflows/gravity-lens.yml` in your repository:
+### 1. Create `.github/workflows/gravity-lens.yml`
 
 ```yaml
 name: generate gravity-lens
 
 on:
   schedule:
-    - cron: "0 0 * * *"   # daily at 00:00 UTC
+    - cron: "0 0 * * *"
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
   contents: write
@@ -72,14 +58,14 @@ jobs:
           node tool/dist/cli.js \
             --user "${{ github.repository_owner }}" \
             --token "$GITHUB_TOKEN" \
-            --theme dark \
+            --theme github \
             --format svg \
             --output "dist/gravity-lens-dark.svg"
 
           node tool/dist/cli.js \
             --user "${{ github.repository_owner }}" \
             --token "$GITHUB_TOKEN" \
-            --theme light \
+            --theme paper-light \
             --format svg \
             --output "dist/gravity-lens.svg"
 
@@ -92,13 +78,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 ```
 
-> **Note:** This workflow clones and builds the tool from source. Once the package is published to npm, you will be able to replace the clone/build steps with a single `npx github-contribution-gravity-lens` command.
+No PAT required — `github.token` is provided automatically by GitHub Actions.
 
-> **Note:** `github.token` is automatically provided by GitHub Actions — no setup required. If you need to include private contributions, you may need to create a [Personal Access Token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) and store it as a repository secret instead.
-
-### 2. Add the image to your README
-
-Use the `<picture>` element to automatically switch between dark and light themes:
+### 2. Embed in your README
 
 ```html
 <picture>
@@ -108,85 +90,58 @@ Use the `<picture>` element to automatically switch between dark and light theme
 </picture>
 ```
 
-Replace `<USER>/<REPO>` with your GitHub username and repository name (e.g. `octocat/octocat`).
+Replace `<USER>/<REPO>` with your GitHub username and repository name.
 
 ### 3. Run
 
-Trigger the workflow manually from the **Actions** tab, push to `main`, or wait for the daily cron schedule. The generated images are deployed to the `output` branch.
+Go to the **Actions** tab and trigger the workflow. That's it.
 
-## CLI Options
+---
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-u, --user <username>` | GitHub username | *(required)* |
-| `-t, --token <token>` | GitHub personal access token (or set `GITHUB_TOKEN` env) | *(required)* |
-| `-d, --demo` | Generate with demo data (no token needed) | `false` |
-| `--theme <theme>` | Color theme: `dark` or `light` | `dark` |
-| `--strength <number>` | Warp strength multiplier | `0.35` |
-| `--duration <number>` | Animation duration in seconds | `14` |
-| `--clip-percent <number>` | Percentile clip for normalization | `95` |
-| `--format <format>` | Output format: `svg` or `gif` | `svg` |
-| `-o, --output <path>` | Output file path | `gravity-lens.<format>` |
+## ✨ What Makes It Different?
 
-## Configuration Examples
+- **🌌 Physics-based animation** — Cells warp toward anomalies like light bending around a massive object
+- **🌊 Left-to-right wave** — Activation ripples across the grid with staggered timing per anomaly
+- **🔮 Interference patterns** — Overlapping gravity wells create visible pulse effects
+- **🎨 6 themed worlds** — Each theme has its own warp intensity, dimming, and glow parameters
 
-**Light theme SVG:**
+Not just colors. Different physics.
 
-```bash
-node dist/cli.js --user octocat --token "$TOKEN" --theme light
-```
+---
 
-**GIF format:**
+## 🎨 Themes
 
-```bash
-node dist/cli.js --user octocat --token "$TOKEN" --format gif
-```
+| Theme | Description |
+|-------|-------------|
+| `github` | Classic dark green. The default. |
+| `deep-space` | Deep blue cosmos. Stronger warp, brighter peaks. |
+| `monochrome` | Grayscale minimalism. |
+| `solar-flare` | Warm red-orange. Intense warp. |
+| `event-horizon` | Near-black. The grid hides until anomalies distort it. |
+| `paper-light` | Light background for GitHub light mode. |
 
-**High warp strength:**
+See the [Theme Gallery](docs/themes.md) for previews and physics parameters.
 
-```bash
-node dist/cli.js --user octocat --token "$TOKEN" --strength 0.5
-```
+---
 
-**Demo mode (no token required):**
+## 🧠 Under the Hood
 
-```bash
-node dist/cli.js --demo --theme dark --format svg
-```
+1. **Fetch** — Pull the last year of contributions via GitHub GraphQL API
+2. **Detect** — Identify top activity spikes as gravitational anomalies
+3. **Warp** — Compute per-cell displacement with a local lens model (R=60px)
+4. **Animate** — Render a 14-second loop: rest → awakening → lens → interference → restore
 
-## Programmatic API
+---
 
-You can also use the rendering functions directly in your own code:
+## 📚 Documentation
 
-```typescript
-import { fetchContributions } from 'github-contribution-gravity-lens';
-import { renderSvg } from 'github-contribution-gravity-lens';
-import { renderGif } from 'github-contribution-gravity-lens';
+- [Getting Started](docs/getting-started.md) — Setup, tokens, and workflow options
+- [Themes](docs/themes.md) — Full gallery with physics parameters
+- [CLI Reference](docs/cli-reference.md) — All options and programmatic API
+- [Development](docs/development.md) — Local setup, testing, and architecture
 
-const days = await fetchContributions('octocat', process.env.GITHUB_TOKEN!);
+---
 
-// SVG
-const svg = renderSvg(days, { theme: 'dark', strength: 0.35, duration: 14 });
+If you like this project, consider giving it a ⭐
 
-// GIF
-const buffer = await renderGif(days, { theme: 'dark', strength: 0.35, duration: 14 });
-```
-
-> **Note:** The package is not yet published to npm (`private: true`). Clone and build locally to use the API.
-
-## How It Works
-
-1. **Fetch** — Pull the last year of contribution data via the GitHub GraphQL API
-2. **Normalize** — Map raw counts to a 0–1 scale with percentile clipping
-3. **Detect anomalies** — Identify top contribution spikes as gravitational sources
-4. **Compute warp** — Calculate per-cell displacement using a local lens model (R=60px influence radius)
-5. **Render** — Generate a 14-second looping animation with five phases:
-   - **Rest** (0–2s) — Static grid
-   - **Awakening** (2–8s) — Brightness ripple propagates left to right
-   - **Lens** (2.5–10s) — Warp ramps up per anomaly with staggered timing
-   - **Interference** (8–11s) — Sine pulse between nearby anomalies
-   - **Restore** (11–14s) — All effects smoothly return to zero
-
-## License
-
-MIT
+MIT License

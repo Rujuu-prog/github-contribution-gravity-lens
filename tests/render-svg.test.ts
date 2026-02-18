@@ -68,10 +68,10 @@ describe('renderSvg', () => {
     expect(svg).toContain('Your commits bend spacetime.');
   });
 
-  it('背景色がダークテーマの宇宙パレットと一致する', () => {
-    const svg = renderSvg(days, { theme: 'dark' });
-    expect(svg).toContain('#0b0f14');
-    expect(svg).toContain('#0f1720');
+  it('背景色がgithubテーマのカラーと一致する', () => {
+    const svg = renderSvg(days, { theme: 'github' });
+    expect(svg).toContain('#0d1117');
+    expect(svg).toContain('#161b22');
   });
 
   it('radialGradientグロー要素が含まれる', () => {

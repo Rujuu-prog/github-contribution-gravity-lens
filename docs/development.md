@@ -26,16 +26,18 @@ node dist/cli.js --demo
 node dist/cli.js --demo --format gif
 
 # テーマ切替
-node dist/cli.js --demo --theme light
+node dist/cli.js --demo --theme deep-space
 
 # ワープ強度・アニメーション時間の調整
-node dist/cli.js --demo --strength 0.5 --duration 6
+node dist/cli.js --demo --strength 0.5 --duration 14
 
 # 出力先を指定
 node dist/cli.js --demo -o preview.svg
 ```
 
 生成されたSVGファイルをブラウザで開くとアニメーションを確認できます。
+
+利用可能なテーマの一覧は [テーマ](themes_ja.md) を参照してください。
 
 ## テスト
 
@@ -74,11 +76,12 @@ GitHub API / Demo Data
 
 ```
 src/
-├── types.ts          型定義 (ContributionDay, GridCell, WarpedCell, Theme等)
+├── types.ts          型定義 (ContributionDay, GridCell, WarpedCell, Theme, ThemeName等)
 ├── normalize.ts      パーセンタイルクリップ・非線形マッピング
 ├── gravity.ts        重力中心の計算・ワープ位置の算出
 ├── animation.ts      ワープ進行率・イージング関数
-├── theme.ts          カラーテーマ (dark / light)
+├── color-blend.ts    色空間変換・HSLブレンド・色調シフト
+├── theme.ts          カラーテーマ (6テーマ + 物理パラメータ)
 ├── fetch.ts          GitHub GraphQL APIからコントリビューションデータ取得
 ├── demo-data.ts      決定的ダミーデータ生成 (トークン不要のプレビュー用)
 ├── render-svg.ts     CSS @keyframes によるSVGアニメーション生成
@@ -91,24 +94,14 @@ tests/
 ├── gravity.test.ts
 ├── animation.test.ts
 ├── theme.test.ts
+├── color-blend.test.ts
 ├── render-svg.test.ts
 ├── render-gif.test.ts
 ├── demo-data.test.ts
-└── cli.test.ts
+├── cli.test.ts
+└── index.test.ts
 ```
 
 ## CLIオプション一覧
 
-| オプション | 短縮形 | 説明 | デフォルト |
-|---|---|---|---|
-| `--user <username>` | `-u` | GitHubユーザー名 | — |
-| `--token <token>` | `-t` | GitHub Personal Access Token | `GITHUB_TOKEN`環境変数 |
-| `--demo` | `-d` | ダミーデータで生成（user/token不要） | `false` |
-| `--theme <theme>` | — | カラーテーマ (`dark` / `light`) | `dark` |
-| `--strength <number>` | — | ワープ強度 | `0.35` |
-| `--duration <number>` | — | アニメーション時間（秒） | `4` |
-| `--clip-percent <number>` | — | パーセンタイルクリップ値 | `95` |
-| `--format <format>` | — | 出力形式 (`svg` / `gif`) | `svg` |
-| `--output <path>` | `-o` | 出力ファイルパス | `gravity-lens.{format}` |
-
-> `--demo` 使用時は `--user` と `--token` は不要です。
+CLIオプションの詳細は [CLI リファレンス](cli-reference_ja.md) を参照してください。

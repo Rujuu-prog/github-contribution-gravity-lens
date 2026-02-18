@@ -1,4 +1,4 @@
-export { ContributionDay, GridCell, AnomalyGridCell, Point, WarpedCell, Theme, RenderOptions } from './types';
+export { ContributionDay, GridCell, AnomalyGridCell, Point, WarpedCell, Theme, ThemeName, RenderOptions } from './types';
 export { percentile, normalizeContributions, applyNonLinearMapping, detectAnomalies } from './normalize';
 export { computeGravityCenter, computeWarpedPositions, computeFieldWarp, computeLocalLensWarp, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly } from './gravity';
 export { cubicBezierEase, computeActivationDelay, getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
