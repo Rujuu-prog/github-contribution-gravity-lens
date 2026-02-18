@@ -15,7 +15,7 @@ dist/
 .playwright-mcp/
 
 gravity-lens.gif
-gravity-lens.svg
+# gravity-lens.svg
 gravity-lens-check.png
 test-output.gif
 test-output.svg
