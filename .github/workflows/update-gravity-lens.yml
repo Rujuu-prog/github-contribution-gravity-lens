@@ -36,25 +36,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p dist
+          mkdir -p output
           node dist/cli.js \
             --user "${{ github.repository_owner }}" \
             --token "$GITHUB_TOKEN" \
             --theme dark \
             --format svg \
-            --output "dist/gravity-lens-dark.svg"
+            --output "output/gravity-lens-dark.svg"
 
           node dist/cli.js \
             --user "${{ github.repository_owner }}" \
             --token "$GITHUB_TOKEN" \
             --theme light \
             --format svg \
-            --output "dist/gravity-lens.svg"
+            --output "output/gravity-lens.svg"
 
       - name: Deploy to output branch
         uses: crazy-max/ghaction-github-pages@v3.2.0
         with:
           target_branch: output
-          build_dir: dist
+          build_dir: output
         env:
           GITHUB_TOKEN: ${{ github.token }}
