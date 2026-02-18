@@ -27,7 +27,7 @@ export function parseCliOptions(args: string[]): CliOptions {
     .option('-t, --token <token>', 'GitHub personal access token')
     .option('--theme <theme>', 'Color theme', 'dark')
     .option('--strength <number>', 'Warp strength', '0.35')
-    .option('--duration <number>', 'Animation duration in seconds', '4')
+    .option('--duration <number>', 'Animation duration in seconds', '14')
     .option('--clip-percent <number>', 'Percentile clip value', '95')
     .option('--format <format>', 'Output format (svg or gif)', 'svg')
     .option('-o, --output <path>', 'Output file path')

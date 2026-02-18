@@ -12,6 +12,7 @@ const darkTheme: Theme = {
   fieldGradient: { peakColor: '#a78bfa', intensity: 0.6 },
   anomalyAccent: '#3ddcff',
   anomalyHighlight: '#5ee6ff',
+  peakMomentColor: '#7df9ff',
 };
 
 const lightTheme: Theme = {
@@ -26,6 +27,7 @@ const lightTheme: Theme = {
   fieldGradient: { peakColor: '#7c3aed', intensity: 0.5 },
   anomalyAccent: '#3ddcff',
   anomalyHighlight: '#5ee6ff',
+  peakMomentColor: '#7df9ff',
 };
 
 export function getTheme(name: 'dark' | 'light'): Theme {

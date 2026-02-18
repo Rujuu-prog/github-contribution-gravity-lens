@@ -1,13 +1,14 @@
 import { ContributionDay, RenderOptions } from './types';
 import { normalizeContributions, detectAnomalies } from './normalize';
-import { computeLocalLensWarp, computeWarpIntensity } from './gravity';
+import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly } from './gravity';
+import { getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
 import { getTheme } from './theme';
-import { computeAnomalyColor } from './color-blend';
+import { computeAnomalyColor, adjustBrightness, shiftHue, hexToRgb } from './color-blend';
 
 const DEFAULT_OPTIONS: RenderOptions = {
   theme: 'dark',
-  strength: 0.35,
-  duration: 4,
+  strength: 0.5,
+  duration: 14,
   clipPercent: 95,
   cellSize: 11,
   cellGap: 4,
@@ -28,13 +29,20 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
   const theme = getTheme(opts.theme);
   const { cellSize, cellGap, cornerRadius } = opts;
   const cellStep = cellSize + cellGap;
-  const R = 40;
+  const R = 60;
 
   const cells = normalizeContributions(days);
   const anomalyCells = detectAnomalies(cells, opts.anomalyPercent);
 
-  // Compute warped positions at full warp
-  const warpedCells = computeLocalLensWarp(anomalyCells, 1, R, opts.strength, cellSize, cellGap);
+  // Compute activation delays for each anomaly
+  const activationDelays = computeAnomalyActivationDelays(anomalyCells, cellSize, cellGap);
+
+  // Compute interference levels
+  const interferenceLevels = computeInterference(anomalyCells, R, cellSize, cellGap);
+
+  // Compute max warped positions (all progress=1) for intensity calculation
+  const maxWarpedCells = computeLocalLensWarp(anomalyCells, 1, R, opts.strength, cellSize, cellGap);
+  const intensities = computeWarpIntensity(maxWarpedCells);
 
   // Grid dimensions
   const maxCol = cells.reduce((max, c) => Math.max(max, c.col), 0);
@@ -57,73 +65,152 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
     return false;
   };
 
-  // Compute warp intensities for color animation
-  const intensities = computeWarpIntensity(warpedCells);
+  // Sampling: generate keyframes by sampling time positions
+  const sampleStep = 0.5;
+  const sampleCount = Math.floor(opts.duration / sampleStep) + 1;
+  const sampleTimes: number[] = [];
+  for (let s = 0; s < sampleCount; s++) {
+    sampleTimes.push(s * sampleStep);
+  }
+
+  // For each sample time, compute warped positions
+  const sampledPositions: { x: number; y: number }[][] = []; // [sampleIndex][cellIndex]
+  for (const t of sampleTimes) {
+    // Build per-anomaly progresses
+    const progresses = new Map<number, number>();
+    anomalyCells.forEach((cell, i) => {
+      if (cell.isAnomaly) {
+        progresses.set(i, getAnomalyWarpProgress(t, opts.duration, activationDelays[i]));
+      }
+    });
+
+    const warped = computeLocalLensWarpPerAnomaly(anomalyCells, progresses, R, opts.strength, cellSize, cellGap);
+    sampledPositions.push(warped.map(w => ({ x: w.warpedX, y: w.warpedY })));
+  }
+
+  // For each sample time, compute per-anomaly brightness and interference
+  const sampledBrightness: number[][] = []; // [sampleIndex][cellIndex]
+  const sampledInterference: number[] = [];
+  for (const t of sampleTimes) {
+    const brightnesses: number[] = anomalyCells.map((cell, i) => {
+      if (cell.isAnomaly) {
+        return getAnomalyBrightnessProgress(t, opts.duration, activationDelays[i]);
+      }
+      // Zone cells: use nearest anomaly's brightness
+      let maxBright = 0;
+      anomalyCells.forEach((ac, ai) => {
+        if (ac.isAnomaly) {
+          const b = getAnomalyBrightnessProgress(t, opts.duration, activationDelays[ai]);
+          if (b > maxBright) maxBright = b;
+        }
+      });
+      return maxBright;
+    });
+    sampledBrightness.push(brightnesses);
+    sampledInterference.push(getInterferenceProgress(t, opts.duration));
+  }
 
   // Build keyframes and rects
   const keyframesArr: string[] = [];
   const rectsArr: string[] = [];
 
-  // 5-phase keyframe percentages (revised):
-  // Phase 1: 0%-25% static
-  // Phase 2: 25%-32.5% brightness only (no position change)
-  // Phase 3: 32.5%-62.5% lens warp (0→1)
-  // Phase 4: 62.5%-80% hold
-  // Phase 5: 80%-100% restore
-
-  warpedCells.forEach((cell, i) => {
-    const origX = cell.originalX + padding;
-    const origY = cell.originalY + padding;
-    const warpX = cell.warpedX + padding;
-    const warpY = cell.warpedY + padding;
+  anomalyCells.forEach((cell, i) => {
+    const origX = cell.originalX !== undefined ? (cell as any).originalX : cell.col * cellStep;
+    const origY = cell.originalY !== undefined ? (cell as any).originalY : cell.row * cellStep;
     const baseColor = theme.levels[cell.level];
     const inZone = isInZone(cell.col, cell.row);
 
     if (!inZone) {
       // Layer A: Static cell (no animation)
-      rectsArr.push(`<rect x="${origX}" y="${origY}" width="${cellSize}" height="${cellSize}" rx="${cornerRadius}" ry="${cornerRadius}" fill="${baseColor}" />`);
+      rectsArr.push(`<rect x="${origX + padding}" y="${origY + padding}" width="${cellSize}" height="${cellSize}" rx="${cornerRadius}" ry="${cornerRadius}" fill="${baseColor}" />`);
       return;
     }
 
-    // Layer B: Animated cell
+    // Layer B: Animated cell with sampling-based keyframes
     const animName = `warp-${i}`;
     const isAnomaly = cell.isAnomaly;
+    const interference = interferenceLevels[i] || 0;
 
-    // Position keyframes with 5-phase structure
-    const scaleStr = isAnomaly ? ' scale(1.02)' : '';
-    keyframesArr.push(`@keyframes ${animName} {
-  0%, 32.5% { transform: translate(${origX}px, ${origY}px); }
-  62.5%, 80% { transform: translate(${warpX.toFixed(2)}px, ${warpY.toFixed(2)}px)${scaleStr}; }
-  100% { transform: translate(${origX}px, ${origY}px); }
-}`);
+    // Build position keyframes from samples
+    const posKeyframes: string[] = [];
+    for (let s = 0; s < sampleTimes.length; s++) {
+      const pct = ((sampleTimes[s] / opts.duration) * 100).toFixed(1);
+      const pos = sampledPositions[s][i];
+      const x = pos.x + padding;
+      const y = pos.y + padding;
 
-    // Color keyframes: anomaly cells get anomalyAccent brightness effect
-    if (isAnomaly) {
-      const accentColor = computeAnomalyColor(baseColor, theme.anomalyAccent, 1, 0.15);
-      keyframesArr.push(`@keyframes color-${i} {
-  0%, 25% { fill: ${baseColor}; }
-  32.5%, 80% { fill: ${accentColor}; }
-  100% { fill: ${baseColor}; }
-}`);
-    } else {
-      // Non-anomaly zone cells: subtle color shift based on warp intensity
-      const fg = theme.fieldGradient;
-      if (fg) {
-        const colorFull = computeAnomalyColor(baseColor, fg.peakColor, intensities[i], fg.intensity);
-        keyframesArr.push(`@keyframes color-${i} {
-  0%, 32.5% { fill: ${baseColor}; }
-  62.5%, 80% { fill: ${colorFull}; }
-  100% { fill: ${baseColor}; }
-}`);
+      if (isAnomaly) {
+        const brightnessP = sampledBrightness[s][i];
+        const rotation = getCellRotation(cell.row, cell.col);
+        const scaleStr = brightnessP > 0 ? ` scale(1.02) rotate(${rotation}deg)` : '';
+        const filterStr = brightnessP > 0 ? ' filter: contrast(1.05);' : '';
+        posKeyframes.push(`  ${pct}% { transform: translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)${scaleStr} translateZ(1px);${filterStr} }`);
+      } else {
+        posKeyframes.push(`  ${pct}% { transform: translate(${x.toFixed(2)}px, ${y.toFixed(2)}px); }`);
       }
     }
 
-    const hasColorKf = keyframesArr.some(k => k.includes(`@keyframes color-${i}`));
-    const animStyle = hasColorKf
-      ? `animation: ${animName} ${opts.duration}s cubic-bezier(0.4, 0.0, 0.2, 1) infinite, color-${i} ${opts.duration}s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;`
-      : `animation: ${animName} ${opts.duration}s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;`;
+    keyframesArr.push(`@keyframes ${animName} {\n${posKeyframes.join('\n')}\n}`);
 
-    rectsArr.push(`<rect width="${cellSize}" height="${cellSize}" rx="${cornerRadius}" ry="${cornerRadius}" fill="${baseColor}" style="${animStyle}" />`);
+    // Build color keyframes from samples
+    const colorKeyframes: string[] = [];
+    for (let s = 0; s < sampleTimes.length; s++) {
+      const pct = ((sampleTimes[s] / opts.duration) * 100).toFixed(1);
+      const brightnessP = sampledBrightness[s][i];
+      const interferenceP = sampledInterference[s];
+
+      // Compute warp progress for color effects
+      let warpP = 0;
+      const pos = sampledPositions[s][i];
+      const disp = Math.hypot(pos.x - origX, pos.y - origY);
+      const maxDisp = Math.hypot(
+        sampledPositions.reduce((max, sp) => Math.max(max, Math.abs(sp[i].x - origX)), 0),
+        sampledPositions.reduce((max, sp) => Math.max(max, Math.abs(sp[i].y - origY)), 0),
+      );
+      if (maxDisp > 0) warpP = disp / maxDisp;
+
+      let color = baseColor;
+      if (isAnomaly) {
+        if (brightnessP > 0) {
+          color = computeAnomalyColor(baseColor, theme.anomalyAccent, brightnessP, 0.15);
+          color = adjustBrightness(color, 0.05 * warpP);
+          if (interferenceP > 0.95) {
+            color = theme.peakMomentColor;
+          } else if (interferenceP > 0) {
+            // Peak moment color blend
+            const peakBlend = interferenceP * 0.3;
+            const peakRgb = hexToRgb(theme.peakMomentColor);
+            const colorRgb = hexToRgb(color);
+            const r = Math.round(colorRgb[0] + (peakRgb[0] - colorRgb[0]) * peakBlend);
+            const g = Math.round(colorRgb[1] + (peakRgb[1] - colorRgb[1]) * peakBlend);
+            const b = Math.round(colorRgb[2] + (peakRgb[2] - colorRgb[2]) * peakBlend);
+            color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+          }
+        }
+      } else {
+        const fg = theme.fieldGradient;
+        if (fg && brightnessP > 0) {
+          color = computeAnomalyColor(baseColor, fg.peakColor, intensities[i] * warpP, fg.intensity);
+          color = shiftHue(color, 7 * warpP);
+          color = adjustBrightness(color, -0.08 * warpP);
+          if (interference > 0 && interferenceP > 0) {
+            color = adjustBrightness(color, 0.20 * interferenceP * interference);
+          }
+        }
+      }
+
+      colorKeyframes.push(`  ${pct}% { fill: ${color}; }`);
+    }
+
+    keyframesArr.push(`@keyframes color-${i} {\n${colorKeyframes.join('\n')}\n}`);
+
+    const animStyle = `animation: ${animName} ${opts.duration}s linear infinite, color-${i} ${opts.duration}s linear infinite;`;
+
+    if (isAnomaly) {
+      rectsArr.push(`<rect width="${cellSize}" height="${cellSize}" rx="6" ry="6" fill="${baseColor}" style="${animStyle}" />`);
+    } else {
+      rectsArr.push(`<rect width="${cellSize}" height="${cellSize}" rx="${cornerRadius}" ry="${cornerRadius}" fill="${baseColor}" style="${animStyle}" />`);
+    }
   });
 
   // Glow definitions and elements for anomaly points
@@ -134,6 +221,7 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
     const cx = src.col * cellStep + cellSize / 2 + padding;
     const cy = src.row * cellStep + cellSize / 2 + padding;
     const outerR = cellStep * 4;
+    const delay = activationDelays[anomalyCells.indexOf(src)];
 
     glowDefs.push(`<radialGradient id="glow-${idx}" cx="${cx}" cy="${cy}" r="${outerR}" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="${theme.anomalyAccent}" stop-opacity="0.12" />
@@ -141,8 +229,13 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
       <stop offset="100%" stop-color="${theme.anomalyAccent}" stop-opacity="0" />
     </radialGradient>`);
 
+    // Glow activation timing based on delay
+    const brightStart = ((2 + delay) / opts.duration).toFixed(3);
+    const brightEnd = ((2 + delay + 1.2) / opts.duration).toFixed(3);
+    const restoreStart = (11 / opts.duration).toFixed(3);
+
     glowElements.push(`<circle cx="${cx}" cy="${cy}" r="${outerR}" fill="url(#glow-${idx})" opacity="0">
-    <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.25;0.625;0.8;1" dur="${opts.duration}s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;${brightStart};${brightEnd};${restoreStart};1" dur="${opts.duration}s" repeatCount="indefinite" />
   </circle>`);
   });
 

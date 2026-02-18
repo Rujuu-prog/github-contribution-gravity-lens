@@ -1,10 +1,10 @@
 export { ContributionDay, GridCell, AnomalyGridCell, Point, WarpedCell, Theme, RenderOptions } from './types';
 export { percentile, normalizeContributions, applyNonLinearMapping, detectAnomalies } from './normalize';
-export { computeGravityCenter, computeWarpedPositions, computeFieldWarp, computeLocalLensWarp } from './gravity';
-export { getWarpProgress, getBrightnessProgress, cubicBezierEase } from './animation';
+export { computeGravityCenter, computeWarpedPositions, computeFieldWarp, computeLocalLensWarp, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly } from './gravity';
+export { cubicBezierEase, computeActivationDelay, getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
 export { getTheme } from './theme';
 export { fetchContributions } from './fetch';
 export { renderSvg } from './render-svg';
 export { renderGif } from './render-gif';
 export { generateDemoData } from './demo-data';
-export { computeAnomalyColor } from './color-blend';
+export { computeAnomalyColor, shiftHue, adjustBrightness, rgbToHsl, hslToRgb } from './color-blend';

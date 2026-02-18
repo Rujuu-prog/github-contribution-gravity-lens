@@ -32,14 +32,11 @@ describe('renderSvg', () => {
   it('全セル分のrectが含まれる', () => {
     const svg = renderSvg(days, { theme: 'dark' });
     const rectCount = (svg.match(/<rect /g) || []).length;
-    // 各セル + 背景rect
     expect(rectCount).toBeGreaterThanOrEqual(days.length);
   });
 
   it('静的セル（アニメーション無し）が存在する', () => {
     const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
-    // 静的セルは animation を持たないrect
-    // SVG内にrectが存在し、一部はstyle属性にanimationを含まない
     const rects = svg.match(/<rect [^>]+>/g) || [];
     const staticRects = rects.filter(r => !r.includes('animation:'));
     expect(staticRects.length).toBeGreaterThan(0);
@@ -52,7 +49,6 @@ describe('renderSvg', () => {
 
   it('明度キーフレームが異常点セルに適用される', () => {
     const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
-    // brightness用のcolorキーフレームが存在する
     expect(svg).toContain('@keyframes color-');
   });
 
@@ -63,7 +59,6 @@ describe('renderSvg', () => {
 
   it('異常点セルにスケール効果がある', () => {
     const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
-    // 異常点セルにscale(1.02)が適用される
     expect(svg).toContain('scale(1.02)');
   });
 
@@ -90,10 +85,8 @@ describe('renderSvg', () => {
   });
 
   it('anomalyPercentオプションが反映される', () => {
-    // anomalyPercent=50 → より多くのセルがアニメーション対象
     const svg50 = renderSvg(daysWithAnomalies, { theme: 'dark', anomalyPercent: 50 });
     const svg5 = renderSvg(daysWithAnomalies, { theme: 'dark', anomalyPercent: 5 });
-    // 50%の方がアニメーション付きrectが多い
     const animated50 = (svg50.match(/animation:/g) || []).length;
     const animated5 = (svg5.match(/animation:/g) || []).length;
     expect(animated50).toBeGreaterThan(animated5);
@@ -103,5 +96,47 @@ describe('renderSvg', () => {
     const svg = renderSvg(days, { theme: 'dark' });
     expect(svg).toContain('font-weight="300"');
     expect(svg).toContain('letter-spacing="0.08em"');
+  });
+
+  it('異常点セルにrx="6"が適用される', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    expect(svg).toContain('rx="6"');
+  });
+
+  it('異常点セルにrotate() transformが存在する', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    expect(svg).toMatch(/rotate\([^)]+deg\)/);
+  });
+
+  it('異常点セルにtranslateZ(1px)が存在する', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    expect(svg).toContain('translateZ(1px)');
+  });
+
+  it('peakMomentColor (#7df9ff) がSVG内に存在する', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    expect(svg).toContain('#7df9ff');
+  });
+
+  it('デフォルトduration=14sである', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    expect(svg).toContain('14s');
+  });
+
+  it('サンプリングベースのキーフレームが生成される', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    // サンプリングベースなのでキーフレーム内に複数のパーセンテージが存在する
+    const keyframeBlocks = svg.match(/@keyframes warp-\d+\s*\{[\s\S]*?\n\}/g) || [];
+    expect(keyframeBlocks.length).toBeGreaterThan(0);
+    // 各キーフレームに複数のストップがある (28サンプル = 28個の百分率)
+    for (const kf of keyframeBlocks) {
+      const pctMatches = kf.match(/[\d.]+%\s*\{/g) || [];
+      expect(pctMatches.length).toBeGreaterThan(2);
+    }
+  });
+
+  it('animation-timing-function: linear が使用される', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    expect(svg).toContain('linear');
   });
 });

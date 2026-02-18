@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeGravityCenter, computeWarpedPositions, findGravityPeaks, computeFieldWarp, computeWarpIntensity, computeLocalLensWarp } from '../src/gravity';
+import { computeGravityCenter, computeWarpedPositions, findGravityPeaks, computeFieldWarp, computeWarpIntensity, computeLocalLensWarp, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly } from '../src/gravity';
 import { GridCell, AnomalyGridCell, Point, WarpedCell } from '../src/types';
 
 function makeCell(row: number, col: number, mass: number): GridCell {
@@ -74,10 +74,9 @@ describe('findGravityPeaks', () => {
       makeCell(0, 0, 5),   // 遠い → 残る
     ];
     const peaks = findGravityPeaks(cells, 3);
-    // col=3/row=3 と col=4/row=3 は距離1 → マージ
     expect(peaks).toHaveLength(2);
-    expect(peaks[0]).toEqual({ x: 3, y: 3 }); // 最大mass
-    expect(peaks[1]).toEqual({ x: 0, y: 0 }); // 遠い
+    expect(peaks[0]).toEqual({ x: 3, y: 3 });
+    expect(peaks[1]).toEqual({ x: 0, y: 0 });
   });
 
   it('セル数よりNが大きい場合、利用可能なピーク数を返す', () => {
@@ -123,14 +122,13 @@ describe('computeWarpedPositions', () => {
   });
 
   it('複数重力源で変位が合算される', () => {
-    const cells = [makeCell(1, 5, 1)]; // 2つの重力源の間のセル
+    const cells = [makeCell(1, 5, 1)];
     const singleCenter: Point = { x: 3, y: 3 };
     const multiCenters: Point[] = [{ x: 3, y: 3 }, { x: 8, y: 3 }];
 
     const singleResult = computeWarpedPositions(cells, singleCenter, 1, 0.35, cellSize, cellGap);
     const multiResult = computeWarpedPositions(cells, multiCenters, 1, 0.35, cellSize, cellGap);
 
-    // 複数重力源の場合、変位が異なることを検証
     const singleDx = Math.abs(singleResult[0].warpedX - singleResult[0].originalX);
     const multiDx = Math.abs(multiResult[0].warpedX - multiResult[0].originalX);
     expect(singleDx).not.toBeCloseTo(multiDx, 1);
@@ -150,7 +148,7 @@ describe('computeWarpedPositions', () => {
   it('遠いセルのワープ量は近いセルより小さい', () => {
     const cells = [
       makeCell(0, 5, 0.5),  // 遠い
-      makeCell(3, 4, 0.5),  // 近い（中心から1離れた位置）
+      makeCell(3, 4, 0.5),  // 近い
     ];
     const center: Point = { x: 3, y: 3 };
     const result = computeWarpedPositions(cells, center, 1, 0.35, cellSize, cellGap);
@@ -226,20 +224,17 @@ describe('computeFieldWarp', () => {
   });
 
   it('高massセル近傍のセルは大きく変位する', () => {
-    // 高massセル(col=5)の隣接セル(col=4) vs 低massセル(col=0)の隣接セル(col=1)
     const cells = [
-      makeCell(0, 0, 0.1),  // 低mass
-      makeCell(0, 1, 0),    // 低mass隣接 → 弱い引力
-      makeCell(0, 4, 0),    // 高mass隣接 → 強い引力
-      makeCell(0, 5, 1),    // 高mass
+      makeCell(0, 0, 0.1),
+      makeCell(0, 1, 0),
+      makeCell(0, 4, 0),
+      makeCell(0, 5, 1),
     ];
     const result = computeFieldWarp(cells, 1, 0.35, cellSize, cellGap);
 
-    // col=4のセル（高mass隣接）の変位
     const nearHigh = result.find(w => w.col === 4)!;
     const nearHighDisp = Math.hypot(nearHigh.warpedX - nearHigh.originalX, nearHigh.warpedY - nearHigh.originalY);
 
-    // col=1のセル（低mass隣接）の変位
     const nearLow = result.find(w => w.col === 1)!;
     const nearLowDisp = Math.hypot(nearLow.warpedX - nearLow.originalX, nearLow.warpedY - nearLow.originalY);
 
@@ -247,14 +242,12 @@ describe('computeFieldWarp', () => {
   });
 
   it('変位方向はmassの多い方向から離れる向きへ向かう', () => {
-    // 重いセルがcol=5にある → col=3のセルは左(-x)へ押し出される
     const cells = [
-      makeCell(0, 3, 0),   // 観察対象
-      makeCell(0, 5, 10),  // 重いセル（右側）
+      makeCell(0, 3, 0),
+      makeCell(0, 5, 10),
     ];
     const result = computeFieldWarp(cells, 1, 0.35, cellSize, cellGap);
     const target = result.find(w => w.col === 3)!;
-    // 斥力により左へ押されるので warpedX < originalX
     expect(target.warpedX).toBeLessThan(target.originalX);
   });
 
@@ -275,7 +268,6 @@ describe('computeFieldWarp', () => {
   it('変位量がmaxWarpでクランプされる', () => {
     const maxWarp = 0.1;
     const maxDisp = maxWarp * cellStep;
-    // 非常に重いセルの隣に軽いセルを置いて、クランプを発動させる
     const cells = [
       makeCell(0, 0, 0),
       makeCell(0, 1, 100),
@@ -322,9 +314,9 @@ describe('computeWarpIntensity', () => {
       makeWarpedCell(1, 0, 0, 15, 1, 15),  // displacement=1
     ];
     const intensities = computeWarpIntensity(cells);
-    expect(intensities[0]).toBe(1);   // 最大
-    expect(intensities[1]).toBe(0);   // 変位なし
-    expect(intensities[2]).toBeCloseTo(0.2, 5); // 1/5
+    expect(intensities[0]).toBe(1);
+    expect(intensities[1]).toBe(0);
+    expect(intensities[2]).toBeCloseTo(0.2, 5);
   });
 
   it('全セルのintensityが0〜1の範囲', () => {
@@ -350,8 +342,8 @@ describe('computeLocalLensWarp', () => {
   const cellSize = 11;
   const cellGap = 4;
   const cellStep = cellSize + cellGap;
-  const R = 40;
-  const maxWarp = 0.35;
+  const R = 60;
+  const maxWarp = 0.5;
 
   it('異常点がない場合、全セルが元の位置を返す', () => {
     const cells = [
@@ -378,8 +370,6 @@ describe('computeLocalLensWarp', () => {
   });
 
   it('R外のセルは変位しない', () => {
-    // 異常点: col=0, row=0 → cx = 5.5, cy = 5.5
-    // 遠いセル: col=10, row=6 → cx = 155.5, cy = 95.5 → dist ≈ 167 > R=40
     const cells = [
       makeAnomalyCell(0, 0, 0.9, true),
       makeAnomalyCell(6, 10, 0.3, false),
@@ -391,8 +381,6 @@ describe('computeLocalLensWarp', () => {
   });
 
   it('R内のセルは変位する', () => {
-    // 異常点: col=3, row=3 → cx = 50.5, cy = 50.5
-    // 近いセル: col=4, row=3 → cx = 65.5, cy = 50.5 → dist = 15 < R=40
     const cells = [
       makeAnomalyCell(3, 3, 0.9, true),
       makeAnomalyCell(3, 4, 0.3, false),
@@ -415,9 +403,6 @@ describe('computeLocalLensWarp', () => {
   });
 
   it('距離に応じて変位量が変わる（近いほど大きい）', () => {
-    // 異常点: col=5, row=3
-    // 近い: col=6, row=3 → dist = 15
-    // 遠い: col=7, row=3 → dist = 30
     const cells = [
       makeAnomalyCell(3, 5, 0.9, true),
       makeAnomalyCell(3, 6, 0.3, false),
@@ -432,19 +417,17 @@ describe('computeLocalLensWarp', () => {
   });
 
   it('複数の異常点からの変位が合算される', () => {
-    // 異常点2つの間にあるセル
     const cells = [
       makeAnomalyCell(3, 2, 0.9, true),
-      makeAnomalyCell(3, 4, 0.3, false), // 中間のセル
+      makeAnomalyCell(3, 4, 0.3, false),
       makeAnomalyCell(3, 6, 0.9, true),
     ];
     const resultMulti = computeLocalLensWarp(cells, 1, R, maxWarp, cellSize, cellGap);
 
-    // 異常点1つだけの場合
     const cellsSingle = [
       makeAnomalyCell(3, 2, 0.9, true),
       makeAnomalyCell(3, 4, 0.3, false),
-      makeAnomalyCell(3, 6, 0.9, false), // non-anomaly
+      makeAnomalyCell(3, 6, 0.9, false),
     ];
     const resultSingle = computeLocalLensWarp(cellsSingle, 1, R, maxWarp, cellSize, cellGap);
 
@@ -452,7 +435,6 @@ describe('computeLocalLensWarp', () => {
     const singleCell = resultSingle.find(w => w.col === 4)!;
     const multiDisp = Math.hypot(multiCell.warpedX - multiCell.originalX, multiCell.warpedY - multiCell.originalY);
     const singleDisp = Math.hypot(singleCell.warpedX - singleCell.originalX, singleCell.warpedY - singleCell.originalY);
-    // 合算により異なる変位（必ずしも大きいとは限らない、方向が相殺する可能性）
     expect(multiDisp).not.toBeCloseTo(singleDisp, 1);
   });
 
@@ -461,7 +443,7 @@ describe('computeLocalLensWarp', () => {
     const maxDisp = smallMaxWarp * cellStep;
     const cells = [
       makeAnomalyCell(3, 3, 1.0, true),
-      makeAnomalyCell(3, 4, 0.3, false), // 非常に近い
+      makeAnomalyCell(3, 4, 0.3, false),
     ];
     const result = computeLocalLensWarp(cells, 1, R, smallMaxWarp, cellSize, cellGap);
     for (const w of result) {
@@ -485,5 +467,247 @@ describe('computeLocalLensWarp', () => {
   it('空配列で空を返す', () => {
     const result = computeLocalLensWarp([], 1, R, maxWarp, cellSize, cellGap);
     expect(result).toHaveLength(0);
+  });
+
+  it('非対称ワープ: dx方向がdy方向より大きい', () => {
+    const cells = [
+      makeAnomalyCell(5, 5, 0.9, true),
+      makeAnomalyCell(7, 7, 0.3, false),
+    ];
+    const result = computeLocalLensWarp(cells, 1, R, maxWarp, cellSize, cellGap);
+    const target = result.find(w => w.col === 7 && w.row === 7)!;
+    const dx = Math.abs(target.warpedX - target.originalX);
+    const dy = Math.abs(target.warpedY - target.originalY);
+    expect(dx / dy).toBeCloseTo(1.5, 1);
+  });
+});
+
+describe('computeInterference', () => {
+  const cellSize = 11;
+  const cellGap = 4;
+  const R = 60;
+
+  it('単一異常点 → 干渉なし', () => {
+    const cells = [
+      makeAnomalyCell(3, 3, 0.9, true),
+      makeAnomalyCell(3, 4, 0.3, false),
+      makeAnomalyCell(3, 5, 0.3, false),
+    ];
+    const result = computeInterference(cells, R, cellSize, cellGap);
+    for (const level of result) {
+      expect(level).toBe(0);
+    }
+  });
+
+  it('2つの異常点の間のセル → interferenceLevel > 0', () => {
+    const cells = [
+      makeAnomalyCell(3, 2, 0.9, true),
+      makeAnomalyCell(3, 4, 0.3, false),
+      makeAnomalyCell(3, 6, 0.9, true),
+    ];
+    const result = computeInterference(cells, R, cellSize, cellGap);
+    expect(result[1]).toBeGreaterThan(0);
+  });
+
+  it('R外のセル → interferenceLevel = 0', () => {
+    const cells = [
+      makeAnomalyCell(0, 0, 0.9, true),
+      makeAnomalyCell(0, 10, 0.9, true),
+      makeAnomalyCell(6, 20, 0.3, false),
+    ];
+    const result = computeInterference(cells, R, cellSize, cellGap);
+    expect(result[2]).toBe(0);
+  });
+
+  it('異常点自身 → interferenceLevel = 0', () => {
+    const cells = [
+      makeAnomalyCell(3, 2, 0.9, true),
+      makeAnomalyCell(3, 4, 0.3, false),
+      makeAnomalyCell(3, 6, 0.9, true),
+    ];
+    const result = computeInterference(cells, R, cellSize, cellGap);
+    expect(result[0]).toBe(0);
+    expect(result[2]).toBe(0);
+  });
+});
+
+describe('computeAnomalyActivationDelays', () => {
+  const cellSize = 11;
+  const cellGap = 4;
+
+  it('異常点のcol位置からdelay算出', () => {
+    const cells = [
+      makeAnomalyCell(0, 0, 0.9, true),   // col=0 → delay=0
+      makeAnomalyCell(0, 1, 0.3, false),   // non-anomaly → delay=0
+      makeAnomalyCell(0, 10, 0.9, true),   // col=10 → delay=6 (maxCol=10)
+    ];
+    const delays = computeAnomalyActivationDelays(cells, cellSize, cellGap);
+    expect(delays).toHaveLength(3);
+    expect(delays[0]).toBe(0);         // col=0 → 0
+    expect(delays[1]).toBe(0);         // non-anomaly
+    expect(delays[2]).toBeCloseTo(6);  // col=10/10 * 6 = 6
+  });
+
+  it('非異常点 → 0', () => {
+    const cells = [
+      makeAnomalyCell(0, 5, 0.3, false),
+      makeAnomalyCell(0, 10, 0.3, false),
+    ];
+    const delays = computeAnomalyActivationDelays(cells, cellSize, cellGap);
+    expect(delays).toEqual([0, 0]);
+  });
+
+  it('maxCol = max(anomalySource.col)', () => {
+    // maxColは異常点セルのcolの最大値で決まる
+    const cells = [
+      makeAnomalyCell(0, 5, 0.9, true),   // col=5
+      makeAnomalyCell(0, 10, 0.9, true),   // col=10 → maxCol=10
+      makeAnomalyCell(0, 20, 0.3, false),  // non-anomaly、col=20だが無視
+    ];
+    const delays = computeAnomalyActivationDelays(cells, cellSize, cellGap);
+    // col=5, maxCol=10 → delay = 5/10 * 6 = 3
+    expect(delays[0]).toBeCloseTo(3);
+    // col=10, maxCol=10 → delay = 6
+    expect(delays[1]).toBeCloseTo(6);
+    // non-anomaly → 0
+    expect(delays[2]).toBe(0);
+  });
+
+  it('異常点が1つだけ → delay=0', () => {
+    const cells = [
+      makeAnomalyCell(0, 5, 0.9, true),
+      makeAnomalyCell(0, 10, 0.3, false),
+    ];
+    const delays = computeAnomalyActivationDelays(cells, cellSize, cellGap);
+    // maxCol=5 → col=5/5 * 6 = 6? No, when maxCol = col, delay = 6?
+    // Actually: single anomaly at col=5 → maxCol=5 → delay = 5/5 * 6 = 6
+    // But that doesn't make sense for a single anomaly. Let me re-read the spec.
+    // The spec says maxCol = max(anomalySource.col). With 1 anomaly at col=5, maxCol=5, delay=5/5*6=6
+    // Actually wait - computeActivationDelay(col, maxCol) with col=maxCol → delay=maxDelay=6
+    // For single anomaly this is fine - it just means it fires at 2+6=8s
+    // Actually no, single anomaly at col=0 would get delay=0, at col=5 delay=6
+    // Let me think again: if maxCol=5 and col=5, delay=6. That means single anomaly always gets maxDelay.
+    // That seems wrong. Let me check: if there's only one anomaly, its delay should probably be 0.
+    // But the spec says activationDelay = map(xPosition, 0→width, 0s→6s)
+    // So it's a linear map from position. Single anomaly at col=5 gets delay based on its position.
+    // However, maxCol in the spec is based on anomaly sources. With 1 source maxCol = that col.
+    // delay = col/maxCol * 6 = 1.0 * 6 = 6. This means single anomaly at any position delays fully.
+    // That seems odd. Let me reconsider - maybe maxCol should be the grid's maxCol, not anomaly maxCol.
+    // The plan says "maxCol = max(anomalySource.col)" but this is for the normalization.
+    // I'll follow the plan as written and test accordingly.
+    expect(delays[0]).toBeCloseTo(6);
+  });
+
+  it('空配列 → 空', () => {
+    const delays = computeAnomalyActivationDelays([], cellSize, cellGap);
+    expect(delays).toEqual([]);
+  });
+
+  it('異常点なし → 全0', () => {
+    const cells = [
+      makeAnomalyCell(0, 0, 0.5, false),
+      makeAnomalyCell(0, 1, 0.3, false),
+    ];
+    const delays = computeAnomalyActivationDelays(cells, cellSize, cellGap);
+    expect(delays).toEqual([0, 0]);
+  });
+});
+
+describe('computeLocalLensWarpPerAnomaly', () => {
+  const cellSize = 11;
+  const cellGap = 4;
+  const cellStep = cellSize + cellGap;
+  const R = 60;
+  const maxWarp = 0.5;
+
+  it('全progress=0 → 変位なし', () => {
+    const cells = [
+      makeAnomalyCell(3, 3, 0.9, true),
+      makeAnomalyCell(3, 4, 0.3, false),
+    ];
+    const progresses = new Map<number, number>(); // anomalyIndex → warpProgress
+    progresses.set(0, 0); // index 0 (the anomaly) has progress 0
+    const result = computeLocalLensWarpPerAnomaly(cells, progresses, R, maxWarp, cellSize, cellGap);
+    for (const w of result) {
+      expect(w.warpedX).toBeCloseTo(w.originalX, 5);
+      expect(w.warpedY).toBeCloseTo(w.originalY, 5);
+    }
+  });
+
+  it('全progress=1 → computeLocalLensWarpと同一結果', () => {
+    const cells = [
+      makeAnomalyCell(3, 3, 0.9, true),
+      makeAnomalyCell(3, 4, 0.3, false),
+      makeAnomalyCell(3, 5, 0.3, false),
+    ];
+    const progresses = new Map<number, number>();
+    progresses.set(0, 1); // index 0 has progress 1
+    const resultPerAnomaly = computeLocalLensWarpPerAnomaly(cells, progresses, R, maxWarp, cellSize, cellGap);
+    const resultFull = computeLocalLensWarp(cells, 1, R, maxWarp, cellSize, cellGap);
+
+    for (let i = 0; i < cells.length; i++) {
+      expect(resultPerAnomaly[i].warpedX).toBeCloseTo(resultFull[i].warpedX, 3);
+      expect(resultPerAnomaly[i].warpedY).toBeCloseTo(resultFull[i].warpedY, 3);
+    }
+  });
+
+  it('部分的progress → 左側anomalyのみアクティブ時の変位', () => {
+    // 2つの異常点: col=2 (active, progress=1), col=8 (inactive, progress=0)
+    const cells = [
+      makeAnomalyCell(3, 2, 0.9, true),   // anomaly index 0 in anomaly list
+      makeAnomalyCell(3, 4, 0.3, false),   // between anomalies
+      makeAnomalyCell(3, 8, 0.9, true),    // anomaly index 1 in anomaly list
+    ];
+    const progresses = new Map<number, number>();
+    progresses.set(0, 1); // left anomaly active
+    progresses.set(2, 0); // right anomaly inactive
+
+    const result = computeLocalLensWarpPerAnomaly(cells, progresses, R, maxWarp, cellSize, cellGap);
+
+    // col=4 should only be affected by col=2 anomaly
+    const middleCell = result[1];
+    const disp = Math.hypot(middleCell.warpedX - middleCell.originalX, middleCell.warpedY - middleCell.originalY);
+    expect(disp).toBeGreaterThan(0);
+
+    // Compare with both active - should be different
+    const progressesBoth = new Map<number, number>();
+    progressesBoth.set(0, 1);
+    progressesBoth.set(2, 1);
+    const resultBoth = computeLocalLensWarpPerAnomaly(cells, progressesBoth, R, maxWarp, cellSize, cellGap);
+    const middleCellBoth = resultBoth[1];
+    const dispBoth = Math.hypot(middleCellBoth.warpedX - middleCellBoth.originalX, middleCellBoth.warpedY - middleCellBoth.originalY);
+    // Different because one side is inactive
+    expect(disp).not.toBeCloseTo(dispBoth, 1);
+  });
+
+  it('空配列 → 空', () => {
+    const result = computeLocalLensWarpPerAnomaly([], new Map(), R, maxWarp, cellSize, cellGap);
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe('getCellRotation', () => {
+  it('決定的: 同じ入力で同じ結果を返す', () => {
+    const r1 = getCellRotation(3, 5);
+    const r2 = getCellRotation(3, 5);
+    expect(r1).toBe(r2);
+  });
+
+  it('回転角は ±1-2deg の範囲内', () => {
+    for (let row = 0; row < 7; row++) {
+      for (let col = 0; col < 52; col++) {
+        const rot = getCellRotation(row, col);
+        expect(Math.abs(rot)).toBeGreaterThanOrEqual(1);
+        expect(Math.abs(rot)).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  it('異なるセルで異なる回転角を返す（少なくとも一部）', () => {
+    const r1 = getCellRotation(0, 0);
+    const r2 = getCellRotation(0, 1);
+    const r3 = getCellRotation(1, 0);
+    const unique = new Set([r1, r2, r3]);
+    expect(unique.size).toBeGreaterThanOrEqual(2);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hexToRgb, rgbToHex, blendColors, computeCellColor, computeAnomalyColor } from '../src/color-blend';
+import { hexToRgb, rgbToHex, blendColors, computeCellColor, computeAnomalyColor, rgbToHsl, hslToRgb, shiftHue, adjustBrightness } from '../src/color-blend';
 
 describe('hexToRgb', () => {
   it('#ff0000 → [255, 0, 0]', () => {
@@ -124,5 +124,119 @@ describe('computeAnomalyColor', () => {
     // blendRatio = 0.5 * 0.15 = 0.075
     expect(result).not.toBe(base);
     expect(result).not.toBe(accent);
+  });
+});
+
+describe('rgbToHsl', () => {
+  it('赤 (255,0,0) → H=0, S=1, L=0.5', () => {
+    const [h, s, l] = rgbToHsl(255, 0, 0);
+    expect(h).toBeCloseTo(0, 1);
+    expect(s).toBeCloseTo(1, 2);
+    expect(l).toBeCloseTo(0.5, 2);
+  });
+
+  it('緑 (0,255,0) → H=120, S=1, L=0.5', () => {
+    const [h, s, l] = rgbToHsl(0, 255, 0);
+    expect(h).toBeCloseTo(120, 1);
+    expect(s).toBeCloseTo(1, 2);
+    expect(l).toBeCloseTo(0.5, 2);
+  });
+
+  it('青 (0,0,255) → H=240, S=1, L=0.5', () => {
+    const [h, s, l] = rgbToHsl(0, 0, 255);
+    expect(h).toBeCloseTo(240, 1);
+    expect(s).toBeCloseTo(1, 2);
+    expect(l).toBeCloseTo(0.5, 2);
+  });
+
+  it('白 (255,255,255) → H=0, S=0, L=1', () => {
+    const [h, s, l] = rgbToHsl(255, 255, 255);
+    expect(s).toBeCloseTo(0, 2);
+    expect(l).toBeCloseTo(1, 2);
+  });
+
+  it('黒 (0,0,0) → H=0, S=0, L=0', () => {
+    const [h, s, l] = rgbToHsl(0, 0, 0);
+    expect(s).toBeCloseTo(0, 2);
+    expect(l).toBeCloseTo(0, 2);
+  });
+});
+
+describe('hslToRgb', () => {
+  it('H=0, S=1, L=0.5 → (255,0,0)', () => {
+    const [r, g, b] = hslToRgb(0, 1, 0.5);
+    expect(r).toBeCloseTo(255, 0);
+    expect(g).toBeCloseTo(0, 0);
+    expect(b).toBeCloseTo(0, 0);
+  });
+
+  it('H=120, S=1, L=0.5 → (0,255,0)', () => {
+    const [r, g, b] = hslToRgb(120, 1, 0.5);
+    expect(r).toBeCloseTo(0, 0);
+    expect(g).toBeCloseTo(255, 0);
+    expect(b).toBeCloseTo(0, 0);
+  });
+
+  it('往復変換で一致する', () => {
+    const testColors: [number, number, number][] = [
+      [255, 0, 0], [0, 255, 0], [0, 0, 255],
+      [128, 64, 32], [200, 100, 150],
+    ];
+    for (const [r, g, b] of testColors) {
+      const [h, s, l] = rgbToHsl(r, g, b);
+      const [r2, g2, b2] = hslToRgb(h, s, l);
+      expect(r2).toBeCloseTo(r, 0);
+      expect(g2).toBeCloseTo(g, 0);
+      expect(b2).toBeCloseTo(b, 0);
+    }
+  });
+});
+
+describe('shiftHue', () => {
+  it('0度シフトで同色を返す', () => {
+    expect(shiftHue('#ff0000', 0)).toBe('#ff0000');
+  });
+
+  it('360度シフトで同色を返す', () => {
+    expect(shiftHue('#ff0000', 360)).toBe('#ff0000');
+  });
+
+  it('色相シフトで異なる色を返す', () => {
+    const shifted = shiftHue('#ff0000', 120);
+    expect(shifted).not.toBe('#ff0000');
+    // 赤→120度シフト → 緑付近
+    const [r, g, b] = hexToRgb(shifted);
+    expect(g).toBeGreaterThan(r);
+  });
+
+  it('負の角度でもシフトできる', () => {
+    const shifted = shiftHue('#ff0000', -120);
+    expect(shifted).not.toBe('#ff0000');
+  });
+});
+
+describe('adjustBrightness', () => {
+  it('amount=0で同色を返す', () => {
+    expect(adjustBrightness('#ff0000', 0)).toBe('#ff0000');
+  });
+
+  it('正の値で明るくなる', () => {
+    const brighter = adjustBrightness('#804020', 0.2);
+    const [r1, g1, b1] = hexToRgb('#804020');
+    const [r2, g2, b2] = hexToRgb(brighter);
+    // 全チャネルの合計が増える
+    expect(r2 + g2 + b2).toBeGreaterThan(r1 + g1 + b1);
+  });
+
+  it('負の値で暗くなる', () => {
+    const darker = adjustBrightness('#804020', -0.2);
+    const [r1, g1, b1] = hexToRgb('#804020');
+    const [r2, g2, b2] = hexToRgb(darker);
+    expect(r2 + g2 + b2).toBeLessThan(r1 + g1 + b1);
+  });
+
+  it('L=1を超えない (白以上にならない)', () => {
+    const result = adjustBrightness('#ffffff', 0.5);
+    expect(result).toBe('#ffffff');
   });
 });

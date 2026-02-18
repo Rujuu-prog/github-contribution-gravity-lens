@@ -20,6 +20,8 @@ export interface Point {
 export interface AnomalyGridCell extends GridCell {
   isAnomaly: boolean;
   anomalyIntensity: number;
+  originalX?: number;
+  originalY?: number;
 }
 
 export interface WarpedCell extends GridCell {
@@ -29,6 +31,8 @@ export interface WarpedCell extends GridCell {
   warpedY: number;
   isAnomaly?: boolean;
   anomalyIntensity?: number;
+  rotation?: number;
+  interferenceLevel?: number;
 }
 
 export interface Theme {
@@ -46,6 +50,7 @@ export interface Theme {
   };
   anomalyAccent: string;
   anomalyHighlight: string;
+  peakMomentColor: string;
 }
 
 export interface RenderOptions {

@@ -6,7 +6,7 @@ describe('parseCliOptions', () => {
     const opts = parseCliOptions([]);
     expect(opts.theme).toBe('dark');
     expect(opts.strength).toBe(0.35);
-    expect(opts.duration).toBe(4);
+    expect(opts.duration).toBe(14);
     expect(opts.clipPercent).toBe(95);
     expect(opts.format).toBe('svg');
   });

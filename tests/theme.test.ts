@@ -85,4 +85,14 @@ describe('getTheme', () => {
     const theme = getTheme('light');
     expect(theme.anomalyHighlight).toBe('#5ee6ff');
   });
+
+  it('darkテーマにpeakMomentColorが#7df9ffである', () => {
+    const theme = getTheme('dark');
+    expect(theme.peakMomentColor).toBe('#7df9ff');
+  });
+
+  it('lightテーマにpeakMomentColorが#7df9ffである', () => {
+    const theme = getTheme('light');
+    expect(theme.peakMomentColor).toBe('#7df9ff');
+  });
 });

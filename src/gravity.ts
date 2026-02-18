@@ -1,4 +1,5 @@
 import { GridCell, AnomalyGridCell, Point, WarpedCell } from './types';
+import { computeActivationDelay } from './animation';
 
 export function computeWarpIntensity(warpedCells: WarpedCell[]): number[] {
   if (warpedCells.length === 0) return [];
@@ -205,8 +206,8 @@ export function computeLocalLensWarp(
 
         const r2 = dist * dist + EPSILON;
         const factor = Math.min(k * src.mass * src.mass / r2, maxWarp);
-        totalDx += ddx * factor;
-        totalDy += ddy * factor;
+        totalDx += ddx * factor * 1.2;
+        totalDy += ddy * factor * 0.8;
       }
     }
 
@@ -225,4 +226,153 @@ export function computeLocalLensWarp(
       warpedY: originalY + totalDy * warpProgress,
     };
   });
+}
+
+/**
+ * 2つ以上の異常点のR内にあるセルの干渉レベルを算出
+ * 戻り値は cells と同じ長さの配列で、各セルの interferenceLevel (0-1)
+ */
+export function computeInterference(
+  cells: AnomalyGridCell[],
+  R: number,
+  cellSize: number,
+  cellGap: number,
+): number[] {
+  const cellStep = cellSize + cellGap;
+  const anomalySources = cells.filter(c => c.isAnomaly);
+
+  return cells.map(cell => {
+    if (cell.isAnomaly) return 0;
+
+    const cx = cell.col * cellStep + cellSize / 2;
+    const cy = cell.row * cellStep + cellSize / 2;
+
+    let influenceCount = 0;
+    let totalInfluence = 0;
+
+    for (const src of anomalySources) {
+      const sx = src.col * cellStep + cellSize / 2;
+      const sy = src.row * cellStep + cellSize / 2;
+      const dist = Math.hypot(cx - sx, cy - sy);
+
+      if (dist <= R && dist > 0) {
+        influenceCount++;
+        totalInfluence += 1 - dist / R;
+      }
+    }
+
+    if (influenceCount < 2) return 0;
+
+    return Math.min(1, totalInfluence / influenceCount);
+  });
+}
+
+/**
+ * 各セルのx位置ベース発火遅延を算出
+ * - 異常点セル: col位置からdelay算出 (maxCol = max(anomalySource.col))
+ * - 非異常点セル: 0
+ */
+export function computeAnomalyActivationDelays(
+  cells: AnomalyGridCell[],
+  cellSize: number,
+  cellGap: number,
+): number[] {
+  if (cells.length === 0) return [];
+
+  const anomalySources = cells.filter(c => c.isAnomaly);
+  if (anomalySources.length === 0) {
+    return cells.map(() => 0);
+  }
+
+  const maxCol = Math.max(...anomalySources.map(c => c.col));
+
+  return cells.map(cell => {
+    if (!cell.isAnomaly) return 0;
+    return computeActivationDelay(cell.col, maxCol);
+  });
+}
+
+/**
+ * 異常点ごとに独立したwarpProgressを適用してワープ位置を計算
+ * progresses: Map<cellIndex, warpProgress> (異常点セルのインデックス → そのwarpProgress)
+ */
+export function computeLocalLensWarpPerAnomaly(
+  cells: AnomalyGridCell[],
+  progresses: Map<number, number>,
+  R: number,
+  maxWarp: number,
+  cellSize: number,
+  cellGap: number,
+): WarpedCell[] {
+  if (cells.length === 0) return [];
+
+  const cellStep = cellSize + cellGap;
+  const k = cellStep * 3;
+  const maxDisp = maxWarp * cellStep;
+
+  // Build anomaly list with their progress
+  const anomalyEntries: { cell: AnomalyGridCell; index: number; progress: number }[] = [];
+  cells.forEach((cell, i) => {
+    if (cell.isAnomaly) {
+      anomalyEntries.push({ cell, index: i, progress: progresses.get(i) ?? 0 });
+    }
+  });
+
+  return cells.map(cell => {
+    const originalX = cell.col * cellStep;
+    const originalY = cell.row * cellStep;
+    const cx = originalX + cellSize / 2;
+    const cy = originalY + cellSize / 2;
+
+    let totalDx = 0;
+    let totalDy = 0;
+
+    if (!cell.isAnomaly) {
+      for (const entry of anomalyEntries) {
+        if (entry.progress === 0) continue;
+
+        const src = entry.cell;
+        const srcX = src.col * cellStep + cellSize / 2;
+        const srcY = src.row * cellStep + cellSize / 2;
+        const ddx = cx - srcX;
+        const ddy = cy - srcY;
+        const dist = Math.hypot(ddx, ddy);
+
+        if (dist > R || dist === 0) continue;
+
+        const r2 = dist * dist + 0.01;
+        const factor = Math.min(k * src.mass * src.mass / r2, maxWarp);
+        totalDx += ddx * factor * 1.2 * entry.progress;
+        totalDy += ddy * factor * 0.8 * entry.progress;
+      }
+    }
+
+    // Clamp displacement
+    const mag = Math.hypot(totalDx, totalDy);
+    if (mag > maxDisp) {
+      totalDx = totalDx / mag * maxDisp;
+      totalDy = totalDy / mag * maxDisp;
+    }
+
+    return {
+      ...cell,
+      originalX,
+      originalY,
+      warpedX: originalX + totalDx,
+      warpedY: originalY + totalDy,
+    };
+  });
+}
+
+/**
+ * 決定的ハッシュベースでセルの回転角 (±1-2deg) を返す
+ */
+export function getCellRotation(row: number, col: number): number {
+  // Simple deterministic hash
+  const hash = ((row * 7919 + col * 6271) ^ 0x5deece66d) & 0xffffffff;
+  const normalized = ((hash & 0x7fffffff) % 1000) / 1000; // 0-1
+  // Map to ±1-2deg: sign from hash, magnitude 1-2
+  const sign = (hash & 1) === 0 ? 1 : -1;
+  const magnitude = 1 + normalized;
+  return sign * magnitude;
 }

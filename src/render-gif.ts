@@ -2,15 +2,15 @@ import { createCanvas, CanvasRenderingContext2D as NodeCanvasCtx } from 'canvas'
 import GIFEncoder from 'gif-encoder-2';
 import { ContributionDay, RenderOptions } from './types';
 import { normalizeContributions, detectAnomalies } from './normalize';
-import { computeLocalLensWarp, computeWarpIntensity } from './gravity';
-import { getWarpProgress, getBrightnessProgress } from './animation';
+import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly } from './gravity';
+import { getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
 import { getTheme } from './theme';
-import { hexToRgb, computeAnomalyColor } from './color-blend';
+import { hexToRgb, computeAnomalyColor, adjustBrightness, shiftHue, blendColors } from './color-blend';
 
 const DEFAULT_OPTIONS: RenderOptions = {
   theme: 'dark',
-  strength: 0.35,
-  duration: 4,
+  strength: 0.5,
+  duration: 14,
   clipPercent: 95,
   cellSize: 11,
   cellGap: 4,
@@ -30,14 +30,20 @@ interface GifRenderOptions {
 
 export async function renderGif(days: ContributionDay[], options: GifRenderOptions = {}): Promise<Buffer> {
   const opts: RenderOptions = { ...DEFAULT_OPTIONS, ...options };
-  const fps = options.fps ?? 24;
+  const fps = options.fps ?? 12; // 12fps for 14s = 168 frames (manageable GIF size)
   const theme = getTheme(opts.theme);
   const { cellSize, cellGap, cornerRadius } = opts;
   const cellStep = cellSize + cellGap;
-  const R = 40;
+  const R = 60;
 
   const cells = normalizeContributions(days);
   const anomalyCells = detectAnomalies(cells, opts.anomalyPercent);
+
+  // Compute activation delays
+  const activationDelays = computeAnomalyActivationDelays(anomalyCells, cellSize, cellGap);
+
+  // Compute interference levels
+  const interferenceLevels = computeInterference(anomalyCells, R, cellSize, cellGap);
 
   // Determine which cells are in the influence zone
   const anomalySources = anomalyCells.filter(c => c.isAnomaly);
@@ -61,6 +67,10 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
 
   const totalFrames = Math.floor(fps * opts.duration);
 
+  // Pre-compute max warped positions (all progress=1) for intensity calculation
+  const maxWarpedCells = computeLocalLensWarp(anomalyCells, 1, R, opts.strength, cellSize, cellGap);
+  const maxIntensities = computeWarpIntensity(maxWarpedCells);
+
   const encoder = new GIFEncoder(width, height, 'neuquant', true);
   encoder.setDelay(Math.round(1000 / fps));
   encoder.setRepeat(0); // loop forever
@@ -72,12 +82,18 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
 
   for (let frame = 0; frame < totalFrames; frame++) {
     const time = (frame / totalFrames) * opts.duration;
-    const warpProgress = getWarpProgress(time, opts.duration);
-    const brightnessProgress = getBrightnessProgress(time, opts.duration);
+    const interferenceProgress = getInterferenceProgress(time, opts.duration);
+
+    // Build per-anomaly progresses
+    const progresses = new Map<number, number>();
+    anomalyCells.forEach((cell, i) => {
+      if (cell.isAnomaly) {
+        progresses.set(i, getAnomalyWarpProgress(time, opts.duration, activationDelays[i]));
+      }
+    });
 
     // Compute warped positions for this frame
-    const warpedCells = computeLocalLensWarp(anomalyCells, warpProgress, R, opts.strength, cellSize, cellGap);
-    const intensities = computeWarpIntensity(warpedCells);
+    const warpedCells = computeLocalLensWarpPerAnomaly(anomalyCells, progresses, R, opts.strength, cellSize, cellGap);
 
     // Gradient background
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
@@ -94,8 +110,37 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
       const inZone = isInZone(cell.col, cell.row);
       const baseColor = theme.levels[cell.level];
 
+      // Per-anomaly brightness
+      let brightnessProgress = 0;
+      if (cell.isAnomaly) {
+        brightnessProgress = getAnomalyBrightnessProgress(time, opts.duration, activationDelays[ci]);
+      } else {
+        // Zone cells: use max brightness of nearby anomalies
+        anomalyCells.forEach((ac, ai) => {
+          if (ac.isAnomaly) {
+            const b = getAnomalyBrightnessProgress(time, opts.duration, activationDelays[ai]);
+            if (b > brightnessProgress) brightnessProgress = b;
+          }
+        });
+      }
+
+      // Compute warp progress for color effects
+      const cellWarpProgress = progresses.get(ci) ?? 0;
+      // For zone cells, use the max warp progress of nearby anomalies
+      let effectiveWarpP = cellWarpProgress;
+      if (!cell.isAnomaly) {
+        let maxWP = 0;
+        anomalyCells.forEach((ac, ai) => {
+          if (ac.isAnomaly) {
+            const wp = progresses.get(ai) ?? 0;
+            if (wp > maxWP) maxWP = wp;
+          }
+        });
+        effectiveWarpP = maxWP;
+      }
+
       if (!inZone) {
-        // Layer A: Static cells - draw at original position
+        // Layer A: Static cells
         const x = cell.originalX + padding;
         const y = cell.originalY + padding;
         ctx.fillStyle = baseColor;
@@ -107,21 +152,40 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
 
         let fillColor = baseColor;
         if (cell.isAnomaly) {
-          // Anomaly cell: brightness effect with anomalyAccent
           fillColor = computeAnomalyColor(baseColor, theme.anomalyAccent, brightnessProgress, 0.15);
+          if (interferenceProgress > 0.95) {
+            fillColor = theme.peakMomentColor;
+          } else if (interferenceProgress > 0) {
+            fillColor = blendColors(fillColor, theme.peakMomentColor, interferenceProgress * 0.3);
+          }
+          fillColor = adjustBrightness(fillColor, 0.05 * effectiveWarpP);
         } else if (fg) {
-          // Zone cell: subtle color shift based on warp intensity
-          fillColor = computeAnomalyColor(baseColor, fg.peakColor, intensities[ci] * warpProgress, fg.intensity);
+          fillColor = computeAnomalyColor(baseColor, fg.peakColor, maxIntensities[ci] * effectiveWarpP, fg.intensity);
+          fillColor = shiftHue(fillColor, 7 * effectiveWarpP);
+          fillColor = adjustBrightness(fillColor, -0.08 * effectiveWarpP);
+          const interference = interferenceLevels[ci] || 0;
+          if (interference > 0 && interferenceProgress > 0) {
+            fillColor = adjustBrightness(fillColor, 0.20 * interferenceProgress * interference);
+          }
         }
 
         ctx.fillStyle = fillColor;
 
-        // Anomaly cells get a micro scale effect
         if (cell.isAnomaly && brightnessProgress > 0) {
           const scale = 1 + 0.02 * brightnessProgress;
           const scaledSize = cellSize * scale;
           const offset = (scaledSize - cellSize) / 2;
-          roundRect(ctx, x - offset, y - offset, scaledSize, scaledSize, cornerRadius);
+          const rotation = getCellRotation(cell.row, cell.col);
+          const rad = (rotation * Math.PI / 180) * effectiveWarpP;
+          const centerX = x - offset + scaledSize / 2;
+          const centerY = y - offset + scaledSize / 2;
+
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.rotate(rad);
+          ctx.translate(-centerX, -centerY);
+          roundRect(ctx, x - offset, y - offset, scaledSize, scaledSize, 6);
+          ctx.restore();
         } else {
           roundRect(ctx, x, y, cellSize, cellSize, cornerRadius);
         }
@@ -129,12 +193,15 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
     }
 
     // Soft radial glow around anomaly points
-    for (const src of anomalySources) {
-      if (brightnessProgress <= 0) continue;
+    for (let si = 0; si < anomalySources.length; si++) {
+      const src = anomalySources[si];
+      const srcIndex = anomalyCells.indexOf(src);
+      const glowBrightness = getAnomalyBrightnessProgress(time, opts.duration, activationDelays[srcIndex]);
+      if (glowBrightness <= 0) continue;
       const cx = src.col * cellStep + cellSize / 2 + padding;
       const cy = src.row * cellStep + cellSize / 2 + padding;
       const outerR = cellStep * 4;
-      const glowAlpha = brightnessProgress * 0.12;
+      const glowAlpha = glowBrightness * 0.12;
       const glowGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, outerR);
       const accentRgb = hexToRgb(theme.anomalyAccent);
       glowGradient.addColorStop(0, `rgba(${accentRgb[0]}, ${accentRgb[1]}, ${accentRgb[2]}, ${glowAlpha})`);
