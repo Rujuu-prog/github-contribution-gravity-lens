@@ -4,7 +4,7 @@
 
 Your contributions bend spacetime.
 
-![Gravity Lens](docs/assets/theme-deep-space.svg)
+![Gravity Lens](https://raw.githubusercontent.com/Rujuu-prog/github-contribution-gravity-lens/output/theme-deep-space.svg)
 
 ---
 

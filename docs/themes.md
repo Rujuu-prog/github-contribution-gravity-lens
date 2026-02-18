@@ -14,7 +14,7 @@ Default theme. The classic GitHub dark green palette.
 --theme github
 ```
 
-![github](assets/theme-github.svg)
+![github](https://raw.githubusercontent.com/Rujuu-prog/github-contribution-gravity-lens/output/theme-github.svg)
 
 ---
 
@@ -26,7 +26,7 @@ Deep blue cosmic palette. Stronger warp and brighter peaks.
 --theme deep-space
 ```
 
-![deep-space](assets/theme-deep-space.svg)
+![deep-space](https://raw.githubusercontent.com/Rujuu-prog/github-contribution-gravity-lens/output/theme-deep-space.svg)
 
 ---
 
@@ -38,7 +38,7 @@ Grayscale minimalism. Form over color.
 --theme monochrome
 ```
 
-![monochrome](assets/theme-monochrome.svg)
+![monochrome](https://raw.githubusercontent.com/Rujuu-prog/github-contribution-gravity-lens/output/theme-monochrome.svg)
 
 ---
 
@@ -50,7 +50,7 @@ Warm red-orange tones. Intense warp effects.
 --theme solar-flare
 ```
 
-![solar-flare](assets/theme-solar-flare.svg)
+![solar-flare](https://raw.githubusercontent.com/Rujuu-prog/github-contribution-gravity-lens/output/theme-solar-flare.svg)
 
 ---
 
@@ -62,7 +62,7 @@ Near-black. The grid is barely visible — until anomalies distort it.
 --theme event-horizon
 ```
 
-![event-horizon](assets/theme-event-horizon.svg)
+![event-horizon](https://raw.githubusercontent.com/Rujuu-prog/github-contribution-gravity-lens/output/theme-event-horizon.svg)
 
 ---
 
@@ -74,7 +74,7 @@ Light background. Matches GitHub's light mode.
 --theme paper-light
 ```
 
-![paper-light](assets/theme-paper-light.svg)
+![paper-light](https://raw.githubusercontent.com/Rujuu-prog/github-contribution-gravity-lens/output/theme-paper-light.svg)
 
 ---
 

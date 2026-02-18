@@ -36,6 +36,14 @@ jobs:
           theme: paper-light
           output-path: output/gravity-lens.svg
 
+      - name: Generate theme previews
+        shell: bash
+        run: |
+          THEMES="github deep-space monochrome solar-flare event-horizon paper-light"
+          for theme in $THEMES; do
+            node dist/cli.js --demo --theme "$theme" --format svg --output "output/theme-${theme}.svg"
+          done
+
       - name: Deploy to output branch
         uses: crazy-max/ghaction-github-pages@v3.2.0
         with:
