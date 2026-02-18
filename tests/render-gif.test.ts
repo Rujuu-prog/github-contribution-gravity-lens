@@ -51,4 +51,10 @@ describe('renderGif', () => {
     expect(gif).toBeInstanceOf(Buffer);
     expect(gif.length).toBeGreaterThan(0);
   });
+
+  it('プログレスバー追加後も2MB以下である', { timeout: 60000 }, async () => {
+    // taglineHeight=40対応、プログレスバー描画込みでもサイズ制限内
+    const gif = await renderGif(days, { theme: 'dark' });
+    expect(gif.length).toBeLessThan(2 * 1024 * 1024);
+  });
 });

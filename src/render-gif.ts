@@ -61,7 +61,7 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
   const maxCol = cells.reduce((max, c) => Math.max(max, c.col), 0);
   const maxRow = cells.reduce((max, c) => Math.max(max, c.row), 0);
   const padding = 20;
-  const taglineHeight = 30;
+  const taglineHeight = 40;
   const width = options.width ?? (maxCol + 1) * cellStep + padding * 2;
   const height = (maxRow + 1) * cellStep + padding * 2 + taglineHeight;
 
@@ -184,7 +184,8 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
           ctx.translate(centerX, centerY);
           ctx.rotate(rad);
           ctx.translate(-centerX, -centerY);
-          roundRect(ctx, x - offset, y - offset, scaledSize, scaledSize, 6);
+          const animatedRx = cornerRadius + (6 - cornerRadius) * brightnessProgress;
+          roundRect(ctx, x - offset, y - offset, scaledSize, scaledSize, animatedRx);
           ctx.restore();
         } else {
           roundRect(ctx, x, y, cellSize, cellSize, cornerRadius);
@@ -211,6 +212,27 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
       ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
       ctx.fillStyle = glowGradient;
       ctx.fill();
+    }
+
+    // Progress bar
+    const gridBottom = (maxRow + 1) * cellStep + padding;
+    const barY = gridBottom + 8;
+    const barWidth = (maxCol + 1) * cellStep;
+    const barProgress = time / opts.duration;
+
+    // Track
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = theme.textColor;
+    roundRect(ctx, padding, barY, barWidth, 3, 1.5);
+    ctx.globalAlpha = 1.0;
+
+    // Bar
+    const currentBarWidth = barWidth * barProgress;
+    if (currentBarWidth > 0) {
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = theme.anomalyAccent;
+      roundRect(ctx, padding, barY, currentBarWidth, 3, 1.5);
+      ctx.globalAlpha = 1.0;
     }
 
     // Tagline

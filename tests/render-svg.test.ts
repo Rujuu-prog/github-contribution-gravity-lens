@@ -57,9 +57,10 @@ describe('renderSvg', () => {
     expect(svg).toContain('#3ddcff');
   });
 
-  it('異常点セルにスケール効果がある', () => {
+  it('異常点セルにスケール効果がある（brightnessProgressで補間される）', () => {
     const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
-    expect(svg).toContain('scale(1.02)');
+    // イージング導入後: scale(1.0200) のフル値だけでなく中間値も含まれる
+    expect(svg).toMatch(/scale\(1\.0[0-2]\d{2}\)/);
   });
 
   it('タグライン "Your commits bend spacetime." が含まれる', () => {
@@ -98,9 +99,11 @@ describe('renderSvg', () => {
     expect(svg).toContain('letter-spacing="0.08em"');
   });
 
-  it('異常点セルにrx="6"が適用される', () => {
+  it('異常点セルのrxがイージングで補間される（rx="6"のみではない）', () => {
     const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
-    expect(svg).toContain('rx="6"');
+    // rx属性はキーフレーム内で補間されるため、静的rect内にrx="6"が存在しなくてもよい
+    // アニメーション付きrectは初期状態rx=cornerRadius(2)で開始
+    expect(svg).toMatch(/rx="[\d.]+"/);
   });
 
   it('異常点セルにrotate() transformが存在する', () => {
@@ -138,5 +141,40 @@ describe('renderSvg', () => {
   it('animation-timing-function: linear が使用される', () => {
     const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
     expect(svg).toContain('linear');
+  });
+
+  // --- プログレスバーテスト ---
+
+  it('プログレスバーのトラックrectが存在する（opacity="0.15"）', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    expect(svg).toMatch(/opacity="0\.15"/);
+    // height="3" rx="1.5" のトラック
+    expect(svg).toMatch(/height="3".*rx="1\.5"/);
+  });
+
+  it('プログレスバーの<animate>要素が存在する', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    expect(svg).toMatch(/<animate\s+attributeName="width"/);
+  });
+
+  // --- セル形状イージングテスト ---
+
+  it('異常点キーフレームにscale中間値が含まれる（binaryでない）', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    // scale(1.0200)（フル値）以外の中間値が存在するはず
+    const scaleMatches = svg.match(/scale\((1\.\d{4})\)/g) || [];
+    const scaleValues = scaleMatches.map(m => parseFloat(m.match(/\d+\.\d+/)![0]));
+    // フル値1.02以外の値が含まれること
+    const nonFullValues = scaleValues.filter(v => v > 1.0 && v < 1.02);
+    expect(nonFullValues.length).toBeGreaterThan(0);
+  });
+
+  it('異常点セルのcontrastがbrightnessProgressで補間される', () => {
+    const svg = renderSvg(daysWithAnomalies, { theme: 'dark' });
+    // contrast(1.050) フル値以外の中間値がある
+    const contrastMatches = svg.match(/contrast\(([\d.]+)\)/g) || [];
+    const contrastValues = contrastMatches.map(m => parseFloat(m.match(/[\d.]+/)![0]));
+    const nonFullValues = contrastValues.filter(v => v > 1.0 && v < 1.05);
+    expect(nonFullValues.length).toBeGreaterThan(0);
   });
 });

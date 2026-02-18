@@ -48,7 +48,7 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
   const maxCol = cells.reduce((max, c) => Math.max(max, c.col), 0);
   const maxRow = cells.reduce((max, c) => Math.max(max, c.row), 0);
   const padding = 20;
-  const taglineHeight = 30;
+  const taglineHeight = 40;
   const width = (maxCol + 1) * cellStep + padding * 2;
   const height = (maxRow + 1) * cellStep + padding * 2 + taglineHeight;
 
@@ -142,8 +142,11 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
       if (isAnomaly) {
         const brightnessP = sampledBrightness[s][i];
         const rotation = getCellRotation(cell.row, cell.col);
-        const scaleStr = brightnessP > 0 ? ` scale(1.02) rotate(${rotation}deg)` : '';
-        const filterStr = brightnessP > 0 ? ' filter: contrast(1.05);' : '';
+        const scale = 1 + 0.02 * brightnessP;
+        const rotAngle = rotation * brightnessP;
+        const scaleStr = ` scale(${scale.toFixed(4)}) rotate(${rotAngle.toFixed(2)}deg)`;
+        const contrast = 1 + 0.05 * brightnessP;
+        const filterStr = brightnessP > 0 ? ` filter: contrast(${contrast.toFixed(3)});` : '';
         posKeyframes.push(`  ${pct}% { transform: translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)${scaleStr} translateZ(1px);${filterStr} }`);
       } else {
         posKeyframes.push(`  ${pct}% { transform: translate(${x.toFixed(2)}px, ${y.toFixed(2)}px); }`);
@@ -204,13 +207,23 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
 
     keyframesArr.push(`@keyframes color-${i} {\n${colorKeyframes.join('\n')}\n}`);
 
-    const animStyle = `animation: ${animName} ${opts.duration}s linear infinite, color-${i} ${opts.duration}s linear infinite;`;
-
+    // rx keyframes for anomaly cells (interpolate cornerRadius → 6 based on brightnessProgress)
     if (isAnomaly) {
-      rectsArr.push(`<rect width="${cellSize}" height="${cellSize}" rx="6" ry="6" fill="${baseColor}" style="${animStyle}" />`);
-    } else {
-      rectsArr.push(`<rect width="${cellSize}" height="${cellSize}" rx="${cornerRadius}" ry="${cornerRadius}" fill="${baseColor}" style="${animStyle}" />`);
+      const rxKeyframes: string[] = [];
+      for (let s = 0; s < sampleTimes.length; s++) {
+        const pct = ((sampleTimes[s] / opts.duration) * 100).toFixed(1);
+        const brightnessP = sampledBrightness[s][i];
+        const animatedRx = cornerRadius + (6 - cornerRadius) * brightnessP;
+        rxKeyframes.push(`  ${pct}% { rx: ${animatedRx.toFixed(2)}; ry: ${animatedRx.toFixed(2)}; }`);
+      }
+      keyframesArr.push(`@keyframes rx-${i} {\n${rxKeyframes.join('\n')}\n}`);
     }
+
+    const animStyle = isAnomaly
+      ? `animation: ${animName} ${opts.duration}s linear infinite, color-${i} ${opts.duration}s linear infinite, rx-${i} ${opts.duration}s linear infinite;`
+      : `animation: ${animName} ${opts.duration}s linear infinite, color-${i} ${opts.duration}s linear infinite;`;
+
+    rectsArr.push(`<rect width="${cellSize}" height="${cellSize}" rx="${cornerRadius}" ry="${cornerRadius}" fill="${baseColor}" style="${animStyle}" />`);
   });
 
   // Glow definitions and elements for anomaly points
@@ -239,6 +252,12 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
   </circle>`);
   });
 
+  // Progress bar dimensions
+  const gridBottom = (maxRow + 1) * cellStep + padding;
+  const barY = gridBottom + 8;
+  const barWidth = (maxCol + 1) * cellStep;
+  const barX = padding;
+
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <defs>
     <linearGradient id="bg-gradient" x1="0" y1="0" x2="0" y2="1">
@@ -253,6 +272,10 @@ export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {
   <rect width="${width}" height="${height}" fill="url(#bg-gradient)" rx="4" ry="4" />
   ${rectsArr.join('\n  ')}
   ${glowElements.join('\n  ')}
+  <rect x="${barX}" y="${barY}" width="${barWidth}" height="3" rx="1.5" ry="1.5" fill="${theme.textColor}" opacity="0.15" />
+  <rect x="${barX}" y="${barY}" width="0" height="3" rx="1.5" ry="1.5" fill="${theme.anomalyAccent}" opacity="0.6">
+    <animate attributeName="width" values="0;${barWidth}" dur="${opts.duration}s" repeatCount="indefinite" />
+  </rect>
   <text x="${width - padding}" y="${height - 8}" fill="${theme.textColor}" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="300" letter-spacing="0.08em" text-anchor="end">Your commits bend spacetime.</text>
 </svg>`;
 
