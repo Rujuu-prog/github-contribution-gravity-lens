@@ -78,4 +78,4 @@ const svg = renderSvg(days, { theme: 'github', strength: 0.35, duration: 14 });
 const buffer = await renderGif(days, { theme: 'deep-space', strength: 0.35, duration: 14 });
 ```
 
-> **Note:** The package is not yet published to npm (`private: true`). Clone and build locally to use the API.
+> **Note:** This tool is available as a [GitHub Action](getting-started.md). To use the CLI or API locally, clone the repository and run `npm ci && npm run build`.

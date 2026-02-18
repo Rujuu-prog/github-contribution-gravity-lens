@@ -35,37 +35,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Generate (dark)
+        uses: Rujuu-prog/github-contribution-gravity-lens@v1
         with:
-          node-version: "20"
+          github-token: ${{ github.token }}
+          theme: github
+          output-path: dist/gravity-lens-dark.svg
 
-      - name: Clone gravity-lens tool
-        run: git clone https://github.com/Rujuu-prog/github-contribution-gravity-lens.git tool
-
-      - name: Build tool
-        run: |
-          cd tool
-          npm ci
-          npm run build
-
-      - name: Generate (dark + light)
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p dist
-          node tool/dist/cli.js \
-            --user "${{ github.repository_owner }}" \
-            --token "$GITHUB_TOKEN" \
-            --theme github \
-            --format svg \
-            --output "dist/gravity-lens-dark.svg"
-
-          node tool/dist/cli.js \
-            --user "${{ github.repository_owner }}" \
-            --token "$GITHUB_TOKEN" \
-            --theme paper-light \
-            --format svg \
-            --output "dist/gravity-lens.svg"
+      - name: Generate (light)
+        uses: Rujuu-prog/github-contribution-gravity-lens@v1
+        with:
+          github-token: ${{ github.token }}
+          theme: paper-light
+          output-path: dist/gravity-lens.svg
 
       - name: Deploy to output branch
         uses: crazy-max/ghaction-github-pages@v3.2.0
@@ -76,7 +58,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 ```
 
-> **Note:** This workflow clones and builds the tool from source. Once the package is published to npm, you will be able to replace the clone/build steps with a single `npx github-contribution-gravity-lens` command.
+> **Note:** This workflow uses the official GitHub Action. For local CLI usage, see [CLI Reference](cli-reference.md).
 
 > **Note:** `github.token` is automatically provided by GitHub Actions — no setup required. If you need to include private contributions, you may need to create a [Personal Access Token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) and store it as a repository secret instead.
 
@@ -105,10 +87,9 @@ You can use any of the 6 available themes in the workflow. See [Themes](themes.m
 To generate a specific theme:
 
 ```yaml
-node tool/dist/cli.js \
-  --user "${{ github.repository_owner }}" \
-  --token "$GITHUB_TOKEN" \
-  --theme deep-space \
-  --format svg \
-  --output "dist/gravity-lens.svg"
+- uses: Rujuu-prog/github-contribution-gravity-lens@v1
+  with:
+    github-token: ${{ github.token }}
+    theme: deep-space
+    output-path: dist/gravity-lens.svg
 ```

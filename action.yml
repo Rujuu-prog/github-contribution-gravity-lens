@@ -1,0 +1,80 @@
+name: 'GitHub Contribution Gravity Lens'
+description: 'Generate gravity lens animation from GitHub contributions'
+author: 'Rujuu-prog'
+branding:
+  icon: 'activity'
+  color: 'purple'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+  username:
+    description: 'GitHub username (default: repository owner)'
+    required: false
+    default: ''
+  theme:
+    description: 'Theme name (github, deep-space, monochrome, solar-flare, event-horizon, paper-light)'
+    required: false
+    default: 'github'
+  format:
+    description: 'Output format (svg or gif)'
+    required: false
+    default: 'svg'
+  output-path:
+    description: 'Output file path'
+    required: false
+    default: ''
+  strength:
+    description: 'Warp strength (0-1)'
+    required: false
+    default: '0.35'
+
+outputs:
+  output-path:
+    description: 'Path to generated file'
+    value: ${{ steps.generate.outputs.output-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      shell: bash
+      run: cd "${{ github.action_path }}" && npm ci
+
+    - name: Build
+      shell: bash
+      run: cd "${{ github.action_path }}" && npm run build
+
+    - name: Generate gravity lens
+      id: generate
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        USERNAME="${{ inputs.username }}"
+        [ -z "$USERNAME" ] && USERNAME="${{ github.repository_owner }}"
+
+        OUTPUT_PATH="${{ inputs.output-path }}"
+        if [ -z "$OUTPUT_PATH" ]; then
+          OUTPUT_PATH="${GITHUB_WORKSPACE}/gravity-lens.${{ inputs.format }}"
+        elif [[ "$OUTPUT_PATH" != /* ]]; then
+          OUTPUT_PATH="${GITHUB_WORKSPACE}/${OUTPUT_PATH}"
+        fi
+
+        mkdir -p "$(dirname "$OUTPUT_PATH")"
+
+        node "${{ github.action_path }}/dist/cli.js" \
+          --user "$USERNAME" \
+          --token "$GITHUB_TOKEN" \
+          --theme "${{ inputs.theme }}" \
+          --format "${{ inputs.format }}" \
+          --strength "${{ inputs.strength }}" \
+          --output "$OUTPUT_PATH"
+
+        echo "output-path=$OUTPUT_PATH" >> "$GITHUB_OUTPUT"

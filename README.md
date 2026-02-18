@@ -37,37 +37,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Clone gravity-lens tool
-        run: git clone https://github.com/Rujuu-prog/github-contribution-gravity-lens.git tool
-
-      - name: Build tool
-        run: |
-          cd tool
-          npm ci
-          npm run build
-
       - name: Generate (dark + light)
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p dist
-          node tool/dist/cli.js \
-            --user "${{ github.repository_owner }}" \
-            --token "$GITHUB_TOKEN" \
-            --theme github \
-            --format svg \
-            --output "dist/gravity-lens-dark.svg"
+        uses: Rujuu-prog/github-contribution-gravity-lens@v1
+        with:
+          github-token: ${{ github.token }}
+          theme: github
+          output-path: dist/gravity-lens-dark.svg
 
-          node tool/dist/cli.js \
-            --user "${{ github.repository_owner }}" \
-            --token "$GITHUB_TOKEN" \
-            --theme paper-light \
-            --format svg \
-            --output "dist/gravity-lens.svg"
+      - name: Generate light theme
+        uses: Rujuu-prog/github-contribution-gravity-lens@v1
+        with:
+          github-token: ${{ github.token }}
+          theme: paper-light
+          output-path: dist/gravity-lens.svg
 
       - name: Deploy to output branch
         uses: crazy-max/ghaction-github-pages@v3.2.0
@@ -79,6 +61,20 @@ jobs:
 ```
 
 No PAT required — `github.token` is provided automatically by GitHub Actions.
+
+<details>
+<summary>All inputs</summary>
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `github-token` | Yes | — | GitHub token for API access |
+| `username` | No | Repository owner | GitHub username |
+| `theme` | No | `github` | Theme name |
+| `format` | No | `svg` | Output format (`svg` or `gif`) |
+| `output-path` | No | `gravity-lens.{format}` | Output file path |
+| `strength` | No | `0.35` | Warp strength (0-1) |
+
+</details>
 
 ### 2. Embed in your README
 

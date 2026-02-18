@@ -1,0 +1,63 @@
+name: test action
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-svg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        theme: [github, deep-space, monochrome, solar-flare, event-horizon, paper-light]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SVG (${{ matrix.theme }})
+        uses: ./
+        id: generate
+        with:
+          github-token: ${{ github.token }}
+          theme: ${{ matrix.theme }}
+          output-path: output/gravity-lens-${{ matrix.theme }}.svg
+
+      - name: Validate output
+        run: |
+          FILE="${{ steps.generate.outputs.output-path }}"
+          echo "Output path: $FILE"
+          test -f "$FILE" || { echo "File not found"; exit 1; }
+          SIZE=$(stat --format=%s "$FILE")
+          echo "File size: ${SIZE} bytes"
+          test "$SIZE" -gt 1000 || { echo "File too small: ${SIZE} bytes"; exit 1; }
+          head -c 200 "$FILE" | grep -q "<svg" || { echo "Not a valid SVG"; exit 1; }
+          echo "Validation passed"
+
+  test-gif:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate GIF (deep-space)
+        uses: ./
+        id: generate
+        with:
+          github-token: ${{ github.token }}
+          theme: deep-space
+          format: gif
+          output-path: output/gravity-lens.gif
+
+      - name: Validate output
+        run: |
+          FILE="${{ steps.generate.outputs.output-path }}"
+          echo "Output path: $FILE"
+          test -f "$FILE" || { echo "File not found"; exit 1; }
+          SIZE=$(stat --format=%s "$FILE")
+          echo "File size: ${SIZE} bytes"
+          test "$SIZE" -gt 10000 || { echo "File too small: ${SIZE} bytes"; exit 1; }
+          echo "Validation passed"

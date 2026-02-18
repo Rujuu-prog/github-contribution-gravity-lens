@@ -78,4 +78,4 @@ const svg = renderSvg(days, { theme: 'github', strength: 0.35, duration: 14 });
 const buffer = await renderGif(days, { theme: 'deep-space', strength: 0.35, duration: 14 });
 ```
 
-> **Note:** パッケージはまだnpmに公開されていません（`private: true`）。APIを使用するにはローカルでクローン・ビルドしてください。
+> **Note:** このツールは[GitHub Action](getting-started_ja.md)として利用可能です。CLIやAPIをローカルで使用するには、リポジトリをクローンして `npm ci && npm run build` を実行してください。
