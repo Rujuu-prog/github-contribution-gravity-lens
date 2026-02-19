@@ -5,7 +5,7 @@ declare module 'gif-encoder-2' {
     setRepeat(repeat: number): void;
     setQuality(quality: number): void;
     start(): void;
-    addFrame(ctx: any): void;
+    addFrame(ctx: unknown): void;
     finish(): void;
     out: {
       getData(): Buffer;

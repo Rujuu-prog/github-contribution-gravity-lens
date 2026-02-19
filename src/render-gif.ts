@@ -1,4 +1,31 @@
 import { ContributionDay, RenderOptions, GifRenderOptions } from './types';
+
+interface CanvasGradient {
+  addColorStop(offset: number, color: string): void;
+}
+
+interface CanvasContext2D {
+  beginPath(): void;
+  moveTo(x: number, y: number): void;
+  lineTo(x: number, y: number): void;
+  quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
+  closePath(): void;
+  fill(): void;
+  fillStyle: string | CanvasGradient;
+  fillRect(x: number, y: number, w: number, h: number): void;
+  fillText(text: string, x: number, y: number): void;
+  font: string;
+  textAlign: string;
+  globalAlpha: number;
+  save(): void;
+  restore(): void;
+  translate(x: number, y: number): void;
+  rotate(angle: number): void;
+  filter: string;
+  arc(x: number, y: number, radius: number, startAngle: number, endAngle: number): void;
+  createLinearGradient(x0: number, y0: number, x1: number, y1: number): CanvasGradient;
+  createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): CanvasGradient;
+}
 import { normalizeContributions, detectAnomalies } from './normalize';
 import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly, computeInterferenceJitter } from './gravity';
 import { getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
@@ -65,17 +92,21 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
   let GIFEncoder: any;
   try {
     createCanvas = (await import('canvas')).createCanvas;
-  } catch {
-    throw new Error(
+  } catch (err) {
+    const error = new Error(
       'The "canvas" package is required for GIF rendering. Install it with: npm install canvas'
     );
+    (error as any).cause = err;
+    throw error;
   }
   try {
     GIFEncoder = (await import('gif-encoder-2')).default;
-  } catch {
-    throw new Error(
+  } catch (err) {
+    const error = new Error(
       'The "gif-encoder-2" package is required for GIF rendering. Install it with: npm install gif-encoder-2'
     );
+    (error as any).cause = err;
+    throw error;
   }
 
   const encoder = new GIFEncoder(width, height, 'neuquant', true);
@@ -85,7 +116,7 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
   encoder.start();
 
   const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d') as unknown as CanvasContext2D;
 
   for (let frame = 0; frame < totalFrames; frame++) {
     const time = (frame / totalFrames) * opts.duration;
@@ -272,7 +303,7 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
 }
 
 function roundRect(
-  ctx: any,
+  ctx: CanvasContext2D,
   x: number,
   y: number,
   w: number,
