@@ -37,14 +37,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: 生成（dark）
-        uses: Rujuu-prog/github-contribution-gravity-lens@v1
+        uses: Rujuu-prog/github-contribution-gravity-lens@v1.0.0
         with:
           github-token: ${{ github.token }}
           theme: github
           output-path: dist/gravity-lens-dark.svg
 
       - name: 生成（light）
-        uses: Rujuu-prog/github-contribution-gravity-lens@v1
+        uses: Rujuu-prog/github-contribution-gravity-lens@v1.0.0
         with:
           github-token: ${{ github.token }}
           theme: paper-light
@@ -88,7 +88,7 @@ jobs:
 特定のテーマで生成する例：
 
 ```yaml
-- uses: Rujuu-prog/github-contribution-gravity-lens@v1
+- uses: Rujuu-prog/github-contribution-gravity-lens@v1.0.0
   with:
     github-token: ${{ github.token }}
     theme: deep-space

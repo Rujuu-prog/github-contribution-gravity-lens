@@ -38,14 +38,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Generate (dark + light)
-        uses: Rujuu-prog/github-contribution-gravity-lens@v1
+        uses: Rujuu-prog/github-contribution-gravity-lens@v1.0.0
         with:
           github-token: ${{ github.token }}
           theme: github
           output-path: dist/gravity-lens-dark.svg
 
       - name: Generate light theme
-        uses: Rujuu-prog/github-contribution-gravity-lens@v1
+        uses: Rujuu-prog/github-contribution-gravity-lens@v1.0.0
         with:
           github-token: ${{ github.token }}
           theme: paper-light
