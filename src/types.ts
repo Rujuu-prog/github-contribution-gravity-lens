@@ -68,3 +68,21 @@ export interface RenderOptions {
   cornerRadius: number;
   anomalyPercent: number;
 }
+
+export interface SvgRenderOptions {
+  theme?: ThemeName | 'dark' | 'light';
+  strength?: number;
+  duration?: number;
+  clipPercent?: number;
+  anomalyPercent?: number;
+}
+
+export interface GifRenderOptions {
+  theme?: ThemeName | 'dark' | 'light';
+  strength?: number;
+  duration?: number;
+  clipPercent?: number;
+  fps?: number;
+  width?: number;
+  anomalyPercent?: number;
+}

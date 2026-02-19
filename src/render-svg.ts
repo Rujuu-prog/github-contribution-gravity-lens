@@ -1,4 +1,4 @@
-import { ContributionDay, RenderOptions, ThemeName } from './types';
+import { ContributionDay, RenderOptions, SvgRenderOptions } from './types';
 import { normalizeContributions, detectAnomalies } from './normalize';
 import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly, computeInterferenceJitter } from './gravity';
 import { getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
@@ -15,14 +15,6 @@ const DEFAULT_OPTIONS: RenderOptions = {
   cornerRadius: 2,
   anomalyPercent: 10,
 };
-
-interface SvgRenderOptions {
-  theme?: ThemeName | 'dark' | 'light';
-  strength?: number;
-  duration?: number;
-  clipPercent?: number;
-  anomalyPercent?: number;
-}
 
 export function renderSvg(days: ContributionDay[], options: SvgRenderOptions = {}): string {
   const opts = { ...DEFAULT_OPTIONS, ...options } as RenderOptions;

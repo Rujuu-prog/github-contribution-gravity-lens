@@ -1,6 +1,4 @@
-import { createCanvas, CanvasRenderingContext2D as NodeCanvasCtx } from 'canvas';
-import GIFEncoder from 'gif-encoder-2';
-import { ContributionDay, RenderOptions, ThemeName } from './types';
+import { ContributionDay, RenderOptions, GifRenderOptions } from './types';
 import { normalizeContributions, detectAnomalies } from './normalize';
 import { computeLocalLensWarp, computeWarpIntensity, computeInterference, getCellRotation, computeAnomalyActivationDelays, computeLocalLensWarpPerAnomaly, computeInterferenceJitter } from './gravity';
 import { getAnomalyWarpProgress, getAnomalyBrightnessProgress, getInterferenceProgress } from './animation';
@@ -17,16 +15,6 @@ const DEFAULT_OPTIONS: RenderOptions = {
   cornerRadius: 2,
   anomalyPercent: 10,
 };
-
-interface GifRenderOptions {
-  theme?: ThemeName | 'dark' | 'light';
-  strength?: number;
-  duration?: number;
-  clipPercent?: number;
-  fps?: number;
-  width?: number;
-  anomalyPercent?: number;
-}
 
 export async function renderGif(days: ContributionDay[], options: GifRenderOptions = {}): Promise<Buffer> {
   const opts = { ...DEFAULT_OPTIONS, ...options } as RenderOptions;
@@ -71,6 +59,24 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
   // Pre-compute max warped positions (all progress=1) for intensity calculation
   const maxWarpedCells = computeLocalLensWarp(anomalyCells, 1, R, effectiveStrength, cellSize, cellGap);
   const maxIntensities = computeWarpIntensity(maxWarpedCells);
+
+  // Dynamic imports for optional native dependencies
+  let createCanvas: any;
+  let GIFEncoder: any;
+  try {
+    createCanvas = (await import('canvas')).createCanvas;
+  } catch {
+    throw new Error(
+      'The "canvas" package is required for GIF rendering. Install it with: npm install canvas'
+    );
+  }
+  try {
+    GIFEncoder = (await import('gif-encoder-2')).default;
+  } catch {
+    throw new Error(
+      'The "gif-encoder-2" package is required for GIF rendering. Install it with: npm install gif-encoder-2'
+    );
+  }
 
   const encoder = new GIFEncoder(width, height, 'neuquant', true);
   encoder.setDelay(Math.round(1000 / fps));
@@ -266,7 +272,7 @@ export async function renderGif(days: ContributionDay[], options: GifRenderOptio
 }
 
 function roundRect(
-  ctx: NodeCanvasCtx,
+  ctx: any,
   x: number,
   y: number,
   w: number,
