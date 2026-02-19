@@ -78,4 +78,8 @@ const svg = renderSvg(days, { theme: 'github', strength: 0.35, duration: 14 });
 const buffer = await renderGif(days, { theme: 'deep-space', strength: 0.35, duration: 14 });
 ```
 
-> **Note:** このツールは[GitHub Action](getting-started_ja.md)として利用可能です。CLIやAPIをローカルで使用するには、リポジトリをクローンして `npm ci && npm run build` を実行してください。
+> **Note:** このツールは[GitHub Action](getting-started_ja.md)および[npmパッケージ](https://www.npmjs.com/package/github-contribution-gravity-lens)として利用可能です。
+
+```bash
+npm install github-contribution-gravity-lens
+```
