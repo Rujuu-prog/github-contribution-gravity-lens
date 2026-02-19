@@ -1,5 +1,9 @@
 # GitHub Contribution Gravity Lens
 
+![CI](https://github.com/Rujuu-prog/github-contribution-gravity-lens/actions/workflows/ci.yml/badge.svg)
+[![npm](https://img.shields.io/npm/v/github-contribution-gravity-lens)](https://www.npmjs.com/package/github-contribution-gravity-lens)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **[日本語](README_ja.md)** | English
 
 Your contributions bend spacetime.
